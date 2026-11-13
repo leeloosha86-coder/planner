@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run export:all",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/((?!_expo|assets|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
