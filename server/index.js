@@ -59,6 +59,14 @@ const SCHEMA = `
     updated_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS notes_user_updated ON notes(telegram_id, updated_at DESC);
+  CREATE TABLE IF NOT EXISTS spheres (
+    telegram_id TEXT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (telegram_id, id)
+  );
 `;
 
 const app = express();
@@ -75,12 +83,33 @@ app.use((req, res, next) => {
 const wrap = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 const nowIso = () => new Date().toISOString();
 const levelForXp = (xp) => xp >= 500 ? 5 : xp >= 300 ? 4 : xp >= 150 ? 3 : xp >= 50 ? 2 : 1;
-const validSpheres = new Set(['work', 'home', 'craft', 'study']);
 const validRepeats = new Set(['none', 'daily', 'weekdays', 'weekly']);
-const sphereNames = { work: 'Работа', home: 'Дом и семья', craft: 'Рукоделие и блог', study: 'Учёба' };
+
+const DEFAULT_SPHERES = [
+  { id: 'home', name: 'Дом', color: '#C06A45' },
+  { id: 'work', name: 'Работа', color: '#5E6F52' },
+  { id: 'health', name: 'Здоровье', color: '#6E8FA8' },
+  { id: 'hobby', name: 'Хобби', color: '#A8829E' },
+];
+const MAX_SPHERES = 12;
+const MAX_SPHERE_NAME = 20;
 
 async function ensureUser(telegramId) {
-  await pool.query('INSERT INTO users (telegram_id, updated_at) VALUES ($1, $2) ON CONFLICT (telegram_id) DO NOTHING', [telegramId, nowIso()]);
+  const created = await pool.query('INSERT INTO users (telegram_id, updated_at) VALUES ($1, $2) ON CONFLICT (telegram_id) DO NOTHING RETURNING telegram_id', [telegramId, nowIso()]);
+  if (created.rowCount) {
+    for (const [position, sphere] of DEFAULT_SPHERES.entries()) {
+      await pool.query('INSERT INTO spheres (telegram_id, id, name, color, position) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING', [telegramId, sphere.id, sphere.name, sphere.color, position]);
+    }
+  }
+}
+
+async function userSpheres(telegramId) {
+  const { rows } = await pool.query('SELECT id, name, color FROM spheres WHERE telegram_id = $1 ORDER BY position, name', [telegramId]);
+  return rows;
+}
+
+function cleanSphereId(value) {
+  return typeof value === 'string' ? value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) : '';
 }
 
 function parseJsonArray(value) {
@@ -132,7 +161,9 @@ async function getState(telegramId) {
   const { rows: taskRows } = await pool.query('SELECT * FROM tasks WHERE telegram_id = $1 ORDER BY created_at', [telegramId]);
   const { rows: habitRows } = await pool.query('SELECT * FROM habits WHERE telegram_id = $1 ORDER BY created_at', [telegramId]);
   const { rows: noteRows } = await pool.query('SELECT * FROM notes WHERE telegram_id = $1 ORDER BY updated_at DESC', [telegramId]);
+  const spheres = await userSpheres(telegramId);
   return {
+    spheres,
     tasks: taskRows.map((row) => ({
       id: row.id,
       title: row.title,
@@ -173,13 +204,39 @@ function cleanDateList(value) {
   return Array.isArray(value) ? [...new Set(value.filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item)))].slice(-1500) : [];
 }
 
+function normalizeSphereList(value) {
+  const seen = new Set();
+  const list = [];
+  for (const item of Array.isArray(value) ? value : []) {
+    const id = cleanSphereId(item?.id);
+    const name = cleanText(item?.name, MAX_SPHERE_NAME).replace(/\s+/g, ' ').trim();
+    const color = /^#[0-9a-fA-F]{6}$/.test(item?.color) ? item.color : '#9DAE8F';
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    list.push({ id, name, color });
+    if (list.length >= MAX_SPHERES) break;
+  }
+  return list.length ? list : DEFAULT_SPHERES.map((sphere) => ({ ...sphere }));
+}
+
 async function saveState(telegramId, input) {
   const timestamp = nowIso();
   const xp = Math.max(0, Math.min(500, Math.floor(Number(input.xp) || 0)));
   const timezone = cleanText(input.timezone, 80) || 'Europe/Moscow';
+  const spheres = normalizeSphereList(input.spheres);
+  const knownIds = new Set(spheres.map((sphere) => sphere.id));
+  const fallbackId = spheres[0].id;
+  const pickSphere = (value) => (knownIds.has(value) ? value : fallbackId);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query('DELETE FROM spheres WHERE telegram_id = $1', [telegramId]);
+    for (const [position, sphere] of spheres.entries()) {
+      await client.query(
+        'INSERT INTO spheres (telegram_id, id, name, color, position) VALUES ($1, $2, $3, $4, $5)',
+        [telegramId, sphere.id, sphere.name, sphere.color, position],
+      );
+    }
     const { rows: oldReminders } = await client.query('SELECT id, last_reminder FROM tasks WHERE telegram_id = $1', [telegramId]);
     const reminders = new Map(oldReminders.map((row) => [row.id, row.last_reminder]));
     await client.query('DELETE FROM tasks WHERE telegram_id = $1', [telegramId]);
@@ -195,7 +252,7 @@ async function saveState(telegramId, input) {
         [
           id, telegramId, title, cleanTime(task.time),
           validRepeats.has(task.repeat) ? task.repeat : 'none',
-          validSpheres.has(task.sphere) ? task.sphere : 'home', cleanDate(task.date),
+          pickSphere(task.sphere), cleanDate(task.date),
           cleanText(task.createdAt, 40) || timestamp, task.completed ? 1 : 0,
           JSON.stringify(cleanDateList(task.completedDates)), reminders.get(id) || '',
         ],
@@ -207,7 +264,7 @@ async function saveState(telegramId, input) {
       await client.query(
         'INSERT INTO habits (id, telegram_id, name, sphere, history, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
         [
-          cleanId(habit.id), telegramId, name, validSpheres.has(habit.sphere) ? habit.sphere : 'home',
+          cleanId(habit.id), telegramId, name, pickSphere(habit.sphere),
           JSON.stringify(cleanDateList(habit.history)), cleanText(habit.createdAt, 40) || timestamp,
         ],
       );
@@ -218,7 +275,7 @@ async function saveState(telegramId, input) {
         'INSERT INTO notes (id, telegram_id, title, text, sphere, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
         [
           cleanId(note.id), telegramId, title, cleanText(note.text, 6000),
-          validSpheres.has(note.sphere) ? note.sphere : 'home',
+          pickSphere(note.sphere),
           cleanText(note.createdAt, 40) || timestamp, cleanText(note.updatedAt, 40) || timestamp,
         ],
       );
@@ -302,6 +359,10 @@ function localParts(date, timezone) {
   }
 }
 
+function sphereLabel(rows, id) {
+  return rows.find((row) => row.id === id)?.name || '';
+}
+
 function occursOn(task, key) {
   if (task.repeat_rule === 'none') return task.due_date === key;
   if (key < task.due_date) return false;
@@ -321,6 +382,7 @@ async function runReminders() {
     const { rows: users } = await pool.query('SELECT * FROM users WHERE bot_started = 1 AND bot_blocked = 0');
     for (const user of users) {
       const current = localParts(new Date(), user.timezone);
+      const sphereRows = await userSpheres(user.telegram_id);
       const { rows: tasks } = await pool.query(
         `SELECT * FROM tasks WHERE telegram_id = $1 AND time = $2 AND (last_reminder != $3 OR last_reminder = '')`,
         [user.telegram_id, current.time, `${current.date} ${current.time}`],
@@ -332,7 +394,7 @@ async function runReminders() {
         try {
           await sendTelegram('sendMessage', {
             chat_id: Number(user.telegram_id),
-            text: `Напоминание · ${task.time}\n\n${task.title}\n${sphereNames[task.sphere] || ''}`,
+            text: `Напоминание · ${task.time}\n\n${task.title}\n${sphereLabel(sphereRows, task.sphere)}`,
             ...(MINI_APP_URL ? { reply_markup: { inline_keyboard: [[{ text: 'Открыть на сегодня', web_app: { url: MINI_APP_URL } }]] } } : {}),
           });
           await pool.query('UPDATE tasks SET last_reminder = $1 WHERE id = $2', [`${current.date} ${current.time}`, task.id]);
