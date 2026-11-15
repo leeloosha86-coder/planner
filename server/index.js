@@ -59,6 +59,14 @@ const SCHEMA = `
     updated_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS notes_user_updated ON notes(telegram_id, updated_at DESC);
+  CREATE TABLE IF NOT EXISTS shopping_items (
+    telegram_id TEXT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (telegram_id, id)
+  );
   CREATE TABLE IF NOT EXISTS spheres (
     telegram_id TEXT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
     id TEXT NOT NULL,
@@ -162,8 +170,10 @@ async function getState(telegramId) {
   const { rows: habitRows } = await pool.query('SELECT * FROM habits WHERE telegram_id = $1 ORDER BY created_at', [telegramId]);
   const { rows: noteRows } = await pool.query('SELECT * FROM notes WHERE telegram_id = $1 ORDER BY updated_at DESC', [telegramId]);
   const spheres = await userSpheres(telegramId);
+  const { rows: shoppingRows } = await pool.query('SELECT * FROM shopping_items WHERE telegram_id = $1 ORDER BY position', [telegramId]);
   return {
     spheres,
+    shopping: shoppingRows.map((row) => ({ id: row.id, title: row.title, done: Boolean(row.done) })),
     tasks: taskRows.map((row) => ({
       id: row.id,
       title: row.title,
@@ -242,6 +252,7 @@ async function saveState(telegramId, input) {
     await client.query('DELETE FROM tasks WHERE telegram_id = $1', [telegramId]);
     await client.query('DELETE FROM habits WHERE telegram_id = $1', [telegramId]);
     await client.query('DELETE FROM notes WHERE telegram_id = $1', [telegramId]);
+    await client.query('DELETE FROM shopping_items WHERE telegram_id = $1', [telegramId]);
     for (const task of input.tasks.slice(0, 2500)) {
       const title = cleanText(task.title, 120).trim();
       if (!title) continue;
@@ -278,6 +289,17 @@ async function saveState(telegramId, input) {
           pickSphere(note.sphere),
           cleanText(note.createdAt, 40) || timestamp, cleanText(note.updatedAt, 40) || timestamp,
         ],
+      );
+    }
+    const seenItems = new Set();
+    for (const [position, item] of (Array.isArray(input.shopping) ? input.shopping : []).slice(0, 300).entries()) {
+      const title = cleanText(item?.title, 120).trim();
+      const id = cleanId(item?.id);
+      if (!title || seenItems.has(id)) continue;
+      seenItems.add(id);
+      await client.query(
+        'INSERT INTO shopping_items (telegram_id, id, title, done, position) VALUES ($1, $2, $3, $4, $5)',
+        [telegramId, id, title, item.done ? 1 : 0, position],
       );
     }
     await client.query(
