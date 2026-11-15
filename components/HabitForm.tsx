@@ -2,28 +2,29 @@ import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'rea
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERES } from '../lib/constants';
-import type { SphereId } from '../lib/types';
+import type { SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
-import { ChoiceChip, FieldLabel, PrimaryButton } from './UI';
+import { FieldLabel, PrimaryButton } from './UI';
+import SpherePicker from './SpherePicker';
 
 export interface HabitFormHandle { save: () => void }
 
 const HabitForm = forwardRef<HabitFormHandle, {
   visible: boolean;
+  spheres: SphereCustom[];
   useTelegramButton: boolean;
   onClose: () => void;
-  onSave: (name: string, sphere: SphereId) => void;
-}>(function HabitForm({ visible, useTelegramButton, onClose, onSave }, ref) {
+  onSave: (name: string, sphere: string) => void;
+}>(function HabitForm({ visible, spheres, useTelegramButton, onClose, onSave }, ref) {
   const { colors, serif } = useTheme();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
-  const [sphere, setSphere] = useState<SphereId>('home');
+  const [sphere, setSphere] = useState(spheres[0]?.id || '');
   const [error, setError] = useState('');
-  useEffect(() => { if (visible) { setName(''); setSphere('home'); setError(''); } }, [visible]);
+  useEffect(() => { if (visible) { setName(''); setSphere(spheres[0]?.id || ''); setError(''); } }, [visible, spheres]);
   const save = () => {
     if (!name.trim()) { setError('Напишите название привычки'); return; }
-    onSave(name.trim(), sphere);
+    onSave(name.trim(), sphere || spheres[0]?.id || '');
   };
   useImperativeHandle(ref, () => ({ save }));
   return (
@@ -40,8 +41,7 @@ const HabitForm = forwardRef<HabitFormHandle, {
             <Text style={[styles.subtitle, { color: colors.muted }]}>Выберите маленький шаг, который легко повторять.</Text>
             <FieldLabel>Название</FieldLabel>
             <TextInput value={name} onChangeText={(value) => { setName(value); setError(''); }} placeholder="Например, прогулка перед сном" placeholderTextColor={colors.muted} autoFocus returnKeyType="done" onSubmitEditing={save} maxLength={100} style={[styles.input, { color: colors.text, backgroundColor: colors.input, borderColor: colors.border }]} />
-            <FieldLabel>Сфера</FieldLabel>
-            <View style={styles.spheres}>{(Object.keys(SPHERES) as SphereId[]).map((id) => <ChoiceChip key={id} label={SPHERES[id].name} small selected={sphere === id} color={SPHERES[id].color} onPress={() => setSphere(id)} />)}</View>
+            <SpherePicker spheres={spheres} value={sphere || spheres[0]?.id || ''} onChange={setSphere} />
             {!!error && <Text style={[styles.error, { color: colors.terra }]}>{error}</Text>}
             {!useTelegramButton && <View style={styles.save}><PrimaryButton label="Сохранить" icon="checkmark" onPress={save} /></View>}
           </View>
@@ -63,7 +63,6 @@ const styles = StyleSheet.create({
   close: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   subtitle: { fontSize: 15, lineHeight: 21, marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 15, paddingVertical: 14, fontSize: 16, minHeight: 52 },
-  spheres: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  save: { marginTop: 24 },
-  error: { marginTop: 14, fontSize: 15 },
+  save: { marginTop: 20 },
+  error: { marginTop: 14, fontSize: 14.5, lineHeight: 20 },
 });
