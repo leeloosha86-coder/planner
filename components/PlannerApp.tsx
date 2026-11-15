@@ -9,7 +9,7 @@ import { botUsername, createInitialData, loadData, persistLocal, persistRemote }
 import { buildTheme, ThemeProvider } from '../lib/theme';
 import { useTelegram } from '../lib/telegram';
 import { fallbackSphereId } from '../lib/spheres';
-import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, SphereCustom, SphereFilter, TabId, Task, TaskDraft } from '../lib/types';
+import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, ShoppingItem, SphereCustom, SphereFilter, TabId, Task, TaskDraft } from '../lib/types';
 import BottomNav from './BottomNav';
 import TaskForm, { TaskFormHandle } from './TaskForm';
 import NoteEditor, { NoteEditorHandle } from './NoteEditor';
@@ -23,6 +23,7 @@ import TodayScreen from '../screens/TodayScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import HabitsScreen from '../screens/HabitsScreen';
 import NotesScreen from '../screens/NotesScreen';
+import ShoppingScreen from '../screens/ShoppingScreen';
 
 export default function PlannerApp() {
   const systemScheme = useColorScheme();
@@ -309,6 +310,36 @@ export default function PlannerApp() {
     });
   };
 
+  const addShoppingItem = (title: string) => {
+    haptic('light');
+    commit((current) => ({ ...current, shopping: [...current.shopping, { id: makeId('item'), title, done: false }] }));
+  };
+
+  const toggleShoppingItem = (item: ShoppingItem) => {
+    haptic('light');
+    commit((current) => ({
+      ...current,
+      shopping: current.shopping.map((entry) => entry.id === item.id ? { ...entry, done: !entry.done } : entry),
+    }));
+  };
+
+  const removeShoppingItem = (id: string) => {
+    haptic('light');
+    commit((current) => ({ ...current, shopping: current.shopping.filter((entry) => entry.id !== id) }));
+  };
+
+  const requestNewShoppingList = () => {
+    setConfirm({
+      title: 'Удалить список?',
+      message: 'Все продукты будут удалены. После этого можно начать новый список.',
+      confirmLabel: 'Удалить',
+      onConfirm: () => {
+        commit((current) => ({ ...current, shopping: [] }));
+        haptic('medium');
+      },
+    });
+  };
+
   const openBot = () => {
     const url = botUsername ? `https://t.me/${botUsername}?start=planner` : 'https://t.me/';
     if (webApp) webApp.openTelegramLink(url);
@@ -336,6 +367,7 @@ export default function PlannerApp() {
               {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
               {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onMark={markHabit} onAdd={() => setHabitFormVisible(true)} />}
               {activeTab === 'notes' && <NotesScreen notes={data.notes} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
+              {activeTab === 'shopping' && <ShoppingScreen items={data.shopping} refreshing={refreshing} onRefresh={hydrate} onAdd={addShoppingItem} onToggle={toggleShoppingItem} onRemove={removeShoppingItem} onClear={requestNewShoppingList} />}
             </>}
           </View>
           {hydrated && activeTab === 'today' && <Pressable onPress={() => openNewTask()} accessibilityLabel="Добавить задачу" style={({ pressed }) => [styles.fab, { backgroundColor: colors.terra, bottom: fabBottom, shadowColor: colors.shadow }, pressed && { transform: [{ scale: 0.92 }] }]}>
