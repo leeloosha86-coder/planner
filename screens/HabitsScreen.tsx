@@ -1,16 +1,16 @@
 import React from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERES } from '../lib/constants';
 import { currentStreak, dateKey, daysWord, lastThirtyDays } from '../lib/date';
-import type { Habit } from '../lib/types';
+import { sphereById } from '../lib/spheres';
+import type { Habit, SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { EmptyState, FadeIn, PrimaryButton } from '../components/UI';
 import { ForestCorner, GoldSpark } from '../components/Decor';
 
-function HabitCard({ habit, index, onMark }: { habit: Habit; index: number; onMark: () => void }) {
+function HabitCard({ habit, spheres, index, onMark }: { habit: Habit; spheres: SphereCustom[]; index: number; onMark: () => void }) {
   const { colors, serif, cardShadow } = useTheme();
-  const sphere = SPHERES[habit.sphere];
+  const sphere = sphereById(spheres, habit.sphere);
   const history = new Set(habit.history);
   const today = dateKey(new Date());
   const markedToday = history.has(today);
@@ -48,8 +48,9 @@ function HabitCard({ habit, index, onMark }: { habit: Habit; index: number; onMa
   );
 }
 
-export default function HabitsScreen({ habits, refreshing, onRefresh, onMark, onAdd }: {
+export default function HabitsScreen({ habits, spheres, refreshing, onRefresh, onMark, onAdd }: {
   habits: Habit[];
+  spheres: SphereCustom[];
   refreshing: boolean;
   onRefresh: () => void;
   onMark: (habit: Habit) => void;
@@ -86,7 +87,7 @@ export default function HabitsScreen({ habits, refreshing, onRefresh, onMark, on
       style={{ backgroundColor: colors.bg }}
       data={habits}
       keyExtractor={(item) => item.id}
-      renderItem={({ item, index }) => <HabitCard habit={item} index={index} onMark={() => onMark(item)} />}
+      renderItem={({ item, index }) => <HabitCard habit={item} spheres={spheres} index={index} onMark={() => onMark(item)} />}
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyState icon="leaf-outline" title="Пока нет привычек" subtitle="Начните с одного простого действия — золотые точки покажут ваш путь" actionLabel="Добавить привычку" onAction={onAdd} />}
       contentContainerStyle={[styles.content, habits.length === 0 && { flexGrow: 1 }]}
