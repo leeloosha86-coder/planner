@@ -1,5 +1,3 @@
-import type { SphereFilter, SphereId } from './types';
-
 export const COLORS = {
   cream: '#F6EFE0',
   card: '#FBF7EE',
@@ -13,22 +11,6 @@ export const COLORS = {
   darkBg: '#2A221C',
   darkCard: '#352B23',
 } as const;
-
-export const SPHERES: Record<SphereId, { name: string; shortName: string; color: string }> = {
-  work: { name: 'Работа', shortName: 'Работа', color: COLORS.forest },
-  home: { name: 'Дом и семья', shortName: 'Дом и семья', color: COLORS.terra },
-  craft: { name: 'Рукоделие и блог', shortName: 'Рукоделие и блог', color: COLORS.craft },
-  study: { name: 'Учёба', shortName: 'Учёба', color: COLORS.study },
-};
-
-export const SPHERE_FILTERS: { id: SphereFilter; name: string; color: string }[] = [
-  { id: 'all', name: 'Все', color: COLORS.forest },
-  ...(Object.keys(SPHERES) as SphereId[]).map((id) => ({
-    id,
-    name: SPHERES[id].name,
-    color: SPHERES[id].color,
-  })),
-];
 
 export const LEVELS = [
   { xp: 0, name: 'Лесная искра', genitive: 'Лесной искры' },
