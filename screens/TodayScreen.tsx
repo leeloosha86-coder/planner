@@ -1,17 +1,18 @@
-import React from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERE_FILTERS } from '../lib/constants';
 import { formatLongDate, greeting, isTaskDone, tasksForDate } from '../lib/date';
-import type { SphereFilter, Task } from '../lib/types';
+import { filtersFor } from '../lib/spheres';
+import type { SphereCustom, SphereFilter, Task } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import ExperienceCard from '../components/ExperienceCard';
 import TaskCard from '../components/TaskCard';
 import { ChoiceChip, EmptyState } from '../components/UI';
 import { LeafMark } from '../components/Decor';
 
-export default function TodayScreen({ tasks, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry }: {
+export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres }: {
   tasks: Task[];
+  spheres: SphereCustom[];
   xp: number;
   today: string;
   filter: SphereFilter;
@@ -25,12 +26,14 @@ export default function TodayScreen({ tasks, xp, today, filter, botStarted, sync
   onRefresh: () => void;
   onOpenBot: () => void;
   onRetry: () => void;
+  onManageSpheres: () => void;
 }) {
   const { colors, serif } = useTheme();
   const now = new Date();
   const allToday = tasksForDate(tasks, today);
   const visible = filter === 'all' ? allToday : allToday.filter((task) => task.sphere === filter);
   const done = visible.filter((task) => isTaskDone(task, today)).length;
+  const filters = useMemo(() => filtersFor(spheres, colors.forest), [colors.forest, spheres]);
 
   const header = (
     <View>
@@ -61,16 +64,18 @@ export default function TodayScreen({ tasks, xp, today, filter, botStarted, sync
       </Pressable>}
       <View style={styles.filterHeader}>
         <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: serif }]}>Задачи на сегодня</Text>
-        <Text style={[styles.sectionCaption, { color: colors.muted }]}>сферы жизни</Text>
+        <Pressable onPress={onManageSpheres} hitSlop={8} accessibilityLabel="Настроить сферы жизни" style={styles.captionRow}>
+          <Text style={[styles.sectionCaption, { color: colors.muted }]}>сферы жизни</Text>
+          <Ionicons name="options-outline" size={14} color={colors.terra} />
+        </Pressable>
       </View>
-      <FlatList
-        horizontal
-        data={SPHERE_FILTERS}
-        keyExtractor={(item) => item.id}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filters}
-        renderItem={({ item }) => <ChoiceChip label={item.name} selected={filter === item.id} color={item.color} onPress={() => onFilter(item.id)} small />}
-      />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        {filters.map((item) => <ChoiceChip key={item.id} label={item.name} selected={filter === item.id} color={item.color} onPress={() => onFilter(item.id)} small />)}
+        <Pressable onPress={onManageSpheres} style={({ pressed }) => [styles.manageChip, { borderColor: colors.border, backgroundColor: colors.card }, pressed && { opacity: 0.7 }]} accessibilityLabel="Добавить или изменить сферы">
+          <Ionicons name="add" size={15} color={colors.terra} />
+          <Text style={[styles.manageChipText, { color: colors.terra }]}>Добавить</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 
@@ -79,7 +84,7 @@ export default function TodayScreen({ tasks, xp, today, filter, botStarted, sync
       style={{ backgroundColor: colors.bg }}
       data={visible}
       keyExtractor={(item) => item.id}
-      renderItem={({ item, index }) => <TaskCard task={item} index={index} done={isTaskDone(item, today)} onToggle={() => onToggle(item)} onPress={() => onEdit(item, today)} />}
+      renderItem={({ item, index }) => <TaskCard task={item} spheres={spheres} index={index} done={isTaskDone(item, today)} onToggle={() => onToggle(item)} onPress={() => onEdit(item, today)} />}
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyState title="На сегодня задач нет" subtitle="Нажмите «+», чтобы добавить задачу" icon="leaf-outline" />}
       contentContainerStyle={[styles.content, visible.length === 0 && { flexGrow: 1 }]}
@@ -113,6 +118,9 @@ const styles = StyleSheet.create({
   retry: { fontSize: 12.5, fontWeight: '700' },
   filterHeader: { marginTop: 25, marginBottom: 12, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   sectionTitle: { fontSize: 23, lineHeight: 28 },
+  captionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sectionCaption: { fontSize: 12 },
   filters: { gap: 8, paddingRight: 20, paddingBottom: 17 },
+  manageChip: { minHeight: 35, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', paddingHorizontal: 11, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  manageChipText: { fontSize: 13, fontWeight: '600' },
 });
