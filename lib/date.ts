@@ -84,6 +84,9 @@ export function tasksForDate(tasks: Task[], key: string): Task[] {
   return tasks
     .filter((task) => taskOccursOn(task, key))
     .sort((a, b) => {
+      const doneA = isTaskDone(a, key) ? 1 : 0;
+      const doneB = isTaskDone(b, key) ? 1 : 0;
+      if (doneA !== doneB) return doneA - doneB;
       if (!a.time && !b.time) return a.createdAt.localeCompare(b.createdAt);
       if (!a.time) return 1;
       if (!b.time) return -1;
