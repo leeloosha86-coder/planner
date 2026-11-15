@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Animated, FlatList, PanResponder, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERES } from '../lib/constants';
 import { formatNoteDate } from '../lib/date';
-import type { Note } from '../lib/types';
+import { sphereById } from '../lib/spheres';
+import type { Note, SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { EmptyState, FadeIn, PrimaryButton } from '../components/UI';
 
-function SwipeableNote({ note, index, onEdit, onRequestDelete }: { note: Note; index: number; onEdit: () => void; onRequestDelete: () => void }) {
+function SwipeableNote({ note, spheres, index, onEdit, onRequestDelete }: { note: Note; spheres: SphereCustom[]; index: number; onEdit: () => void; onRequestDelete: () => void }) {
   const { colors, serif, cardShadow } = useTheme();
   const [translate] = useState(() => new Animated.Value(0));
-  const sphere = SPHERES[note.sphere];
+  const sphere = sphereById(spheres, note.sphere);
   const pan = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 10 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2,
     onPanResponderMove: (_, gesture) => translate.setValue(Math.max(-112, Math.min(0, gesture.dx))),
@@ -43,8 +43,9 @@ function SwipeableNote({ note, index, onEdit, onRequestDelete }: { note: Note; i
   );
 }
 
-export default function NotesScreen({ notes, refreshing, onRefresh, onAdd, onEdit, onDelete }: {
+export default function NotesScreen({ notes, spheres, refreshing, onRefresh, onAdd, onEdit, onDelete }: {
   notes: Note[];
+  spheres: SphereCustom[];
   refreshing: boolean;
   onRefresh: () => void;
   onAdd: () => void;
@@ -84,7 +85,7 @@ export default function NotesScreen({ notes, refreshing, onRefresh, onAdd, onEdi
       style={{ backgroundColor: colors.bg }}
       data={filtered}
       keyExtractor={(item) => item.id}
-      renderItem={({ item, index }) => <SwipeableNote note={item} index={index} onEdit={() => onEdit(item)} onRequestDelete={() => onDelete(item)} />}
+      renderItem={({ item, index }) => <SwipeableNote note={item} spheres={spheres} index={index} onEdit={() => onEdit(item)} onRequestDelete={() => onDelete(item)} />}
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyState icon={query ? 'search-outline' : 'document-text-outline'} title={query ? 'Ничего не найдено' : 'Пока нет заметок'} subtitle={query ? 'Попробуйте изменить запрос или очистить поиск' : 'Сохраните первую идею, чтобы она не потерялась'} actionLabel={query ? 'Очистить поиск' : 'Добавить заметку'} onAction={query ? () => setQuery('') : onAdd} />}
       contentContainerStyle={[styles.content, filtered.length === 0 && { flexGrow: 1 }]}
