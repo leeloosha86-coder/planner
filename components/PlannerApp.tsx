@@ -10,6 +10,7 @@ import { buildTheme, ThemeProvider } from '../lib/theme';
 import { useTelegram } from '../lib/telegram';
 import { fallbackSphereId } from '../lib/spheres';
 import { tipForDate } from '../lib/tips';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, ShoppingItem, SphereCustom, SphereFilter, TabId, Task, TaskDraft } from '../lib/types';
 import BottomNav from './BottomNav';
 import TaskForm, { TaskFormHandle } from './TaskForm';
@@ -26,6 +27,8 @@ import ScheduleScreen from '../screens/ScheduleScreen';
 import HabitsScreen from '../screens/HabitsScreen';
 import NotesScreen from '../screens/NotesScreen';
 import ShoppingScreen from '../screens/ShoppingScreen';
+
+const TIP_SHOWN_KEY = 'moy-planirovshchik-tip-shown-on';
 
 export default function PlannerApp() {
   const systemScheme = useColorScheme();
@@ -137,8 +140,14 @@ export default function PlannerApp() {
   useEffect(() => {
     if (!hydrated || tipShown.current) return;
     tipShown.current = true;
-    const text = tipForDate(new Date());
-    if (text) setTip(text);
+    const today = dateKey(new Date());
+    AsyncStorage.getItem(TIP_SHOWN_KEY).then((shownOn) => {
+      if (shownOn === today) return;
+      const text = tipForDate(new Date());
+      if (!text) return;
+      setTip(text);
+      return AsyncStorage.setItem(TIP_SHOWN_KEY, today);
+    }).catch(() => undefined);
   }, [hydrated]);
 
   const openNewTask = useCallback((date = dateKey(new Date()), time = '') => {
