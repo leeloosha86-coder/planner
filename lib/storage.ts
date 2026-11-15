@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dateKey, makeId, rolloverOverdueTasks } from './date';
 import { DEFAULT_SPHERES, fallbackSphereId, modernSphereId, normalizeSpheres } from './spheres';
 import { getTelegram } from './telegram';
-import type { Habit, Note, PlannerData, Task } from './types';
+import type { Habit, Note, PlannerData, ShoppingItem, Task } from './types';
 
 const STORAGE_KEY = 'moy-planirovshchik-data-v1';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
@@ -69,11 +69,20 @@ export function createInitialData(): PlannerData {
     habits: initialHabits(),
     notes: initialNotes(),
     spheres: DEFAULT_SPHERES.map((sphere) => ({ ...sphere })),
+    shopping: [],
     xp: 30,
     botStarted: false,
     updatedAt: new Date().toISOString(),
     timezone: timezone(),
   };
+}
+
+function normalizeShopping(value: unknown): ShoppingItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is ShoppingItem => typeof item === 'object' && item !== null && typeof item.id === 'string' && typeof item.title === 'string')
+    .slice(0, 300)
+    .map((item) => ({ id: item.id, title: item.title.slice(0, 120), done: Boolean(item.done) }));
 }
 
 export function normalize(value: Partial<PlannerData>): PlannerData {
@@ -88,6 +97,7 @@ export function normalize(value: Partial<PlannerData>): PlannerData {
     habits: habits.map((habit) => ({ ...habit, sphere: adopt(habit.sphere) })),
     notes: notes.map((note) => ({ ...note, sphere: adopt(note.sphere) })),
     spheres,
+    shopping: normalizeShopping(value.shopping),
     xp: Math.max(0, Math.min(500, Number(value.xp) || 0)),
     botStarted: Boolean(value.botStarted),
     updatedAt: value.updatedAt || fallback.updatedAt,
