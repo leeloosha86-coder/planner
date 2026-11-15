@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dateKey, makeId, rolloverOverdueTasks } from './date';
+import { DEFAULT_SPHERES, fallbackSphereId, modernSphereId, normalizeSpheres } from './spheres';
 import { getTelegram } from './telegram';
 import type { Habit, Note, PlannerData, Task } from './types';
 
@@ -21,8 +22,8 @@ function initialTasks(): Task[] {
   return [
     { id: makeId('task'), title: 'Разобрать рабочую почту', time: '09:30', repeat: 'none', sphere: 'work', date: today, createdAt, completed: true, completedDates: [] },
     { id: makeId('task'), title: 'Полить фиалки и проверить ростки', time: '', repeat: 'none', sphere: 'home', date: today, createdAt, completed: false, completedDates: [] },
-    { id: makeId('task'), title: 'Сфотографировать новое изделие', time: '16:00', repeat: 'none', sphere: 'craft', date: today, createdAt, completed: false, completedDates: [] },
-    { id: makeId('task'), title: 'Прочитать двадцать страниц', time: '20:30', repeat: 'daily', sphere: 'study', date: today, createdAt, completed: false, completedDates: [] },
+    { id: makeId('task'), title: 'Сфотографировать новое изделие', time: '16:00', repeat: 'none', sphere: 'hobby', date: today, createdAt, completed: false, completedDates: [] },
+    { id: makeId('task'), title: 'Прочитать двадцать страниц', time: '20:30', repeat: 'daily', sphere: 'health', date: today, createdAt, completed: false, completedDates: [] },
     { id: makeId('task'), title: 'Спокойная прогулка перед сном', time: '19:00', repeat: 'none', sphere: 'home', date: today, createdAt, completed: false, completedDates: [] },
   ];
 }
@@ -35,8 +36,8 @@ function initialHabits(): Habit[] {
     return dateKey(day);
   });
   return [
-    { id: makeId('habit'), name: 'Стакан тёплой воды утром', sphere: 'home', history: keys.slice(4, 11), createdAt: now.toISOString() },
-    { id: makeId('habit'), name: 'Пятнадцать минут рукоделия', sphere: 'craft', history: [2, 4, 6, 7, 8, 9, 10].map((index) => keys[index]), createdAt: now.toISOString() },
+    { id: makeId('habit'), name: 'Стакан тёплой воды утром', sphere: 'health', history: keys.slice(4, 11), createdAt: now.toISOString() },
+    { id: makeId('habit'), name: 'Пятнадцать минут рукоделия', sphere: 'hobby', history: [2, 4, 6, 7, 8, 9, 10].map((index) => keys[index]), createdAt: now.toISOString() },
   ];
 }
 
@@ -47,7 +48,7 @@ function initialNotes(): Note[] {
       id: makeId('note'),
       title: 'Идеи для тихого вечера',
       text: 'Заварить чай с чабрецом, зажечь свечу и достать недоконченную вышивку. Оставить телефон в другой комнате.',
-      sphere: 'craft',
+      sphere: 'hobby',
       createdAt: new Date(now.getTime() - 86400000).toISOString(),
       updatedAt: now.toISOString(),
     },
@@ -67,6 +68,7 @@ export function createInitialData(): PlannerData {
     tasks: initialTasks(),
     habits: initialHabits(),
     notes: initialNotes(),
+    spheres: DEFAULT_SPHERES.map((sphere) => ({ ...sphere })),
     xp: 30,
     botStarted: false,
     updatedAt: new Date().toISOString(),
@@ -74,12 +76,18 @@ export function createInitialData(): PlannerData {
   };
 }
 
-function normalize(value: Partial<PlannerData>): PlannerData {
+export function normalize(value: Partial<PlannerData>): PlannerData {
   const fallback = createInitialData();
+  const spheres = normalizeSpheres(value.spheres);
+  const adopt = (id: unknown) => fallbackSphereId(spheres, modernSphereId(typeof id === 'string' ? id : ''));
+  const tasks = Array.isArray(value.tasks) ? rolloverOverdueTasks(value.tasks) : fallback.tasks;
+  const habits = Array.isArray(value.habits) ? value.habits : fallback.habits;
+  const notes = Array.isArray(value.notes) ? value.notes : fallback.notes;
   return {
-    tasks: Array.isArray(value.tasks) ? rolloverOverdueTasks(value.tasks) : fallback.tasks,
-    habits: Array.isArray(value.habits) ? value.habits : fallback.habits,
-    notes: Array.isArray(value.notes) ? value.notes : fallback.notes,
+    tasks: tasks.map((task) => ({ ...task, sphere: adopt(task.sphere) })),
+    habits: habits.map((habit) => ({ ...habit, sphere: adopt(habit.sphere) })),
+    notes: notes.map((note) => ({ ...note, sphere: adopt(note.sphere) })),
+    spheres,
     xp: Math.max(0, Math.min(500, Number(value.xp) || 0)),
     botStarted: Boolean(value.botStarted),
     updatedAt: value.updatedAt || fallback.updatedAt,
