@@ -9,12 +9,14 @@ import { botUsername, createInitialData, loadData, persistLocal, persistRemote }
 import { buildTheme, ThemeProvider } from '../lib/theme';
 import { useTelegram } from '../lib/telegram';
 import { fallbackSphereId } from '../lib/spheres';
+import { tipForDate } from '../lib/tips';
 import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, ShoppingItem, SphereCustom, SphereFilter, TabId, Task, TaskDraft } from '../lib/types';
 import BottomNav from './BottomNav';
 import TaskForm, { TaskFormHandle } from './TaskForm';
 import NoteEditor, { NoteEditorHandle } from './NoteEditor';
 import HabitForm, { HabitFormHandle } from './HabitForm';
 import SpheresSheet, { SpheresSheetHandle } from './SpheresSheet';
+import TipPopup from './TipPopup';
 import { ConfirmDialog, FadeIn } from './UI';
 import ElfPortrait from './ElfPortrait';
 import SparkBurst from './SparkBurst';
@@ -41,6 +43,8 @@ export default function PlannerApp() {
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
   const [habitFormVisible, setHabitFormVisible] = useState(false);
   const [spheresVisible, setSpheresVisible] = useState(false);
+  const [tip, setTip] = useState<string | null>(null);
+  const tipShown = useRef(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [levelUpEvent, setLevelUpEvent] = useState<{ id: number; level: number } | null>(null);
   const [levelUpSignal, setLevelUpSignal] = useState(0);
@@ -129,6 +133,13 @@ export default function PlannerApp() {
       // Старые версии Telegram просто используют цвета интерфейса.
     }
   }, [colors.bg, webApp]);
+
+  useEffect(() => {
+    if (!hydrated || tipShown.current) return;
+    tipShown.current = true;
+    const text = tipForDate(new Date());
+    if (text) setTip(text);
+  }, [hydrated]);
 
   const openNewTask = useCallback((date = dateKey(new Date()), time = '') => {
     setTaskDraft({
@@ -390,6 +401,7 @@ export default function PlannerApp() {
         <NoteEditor ref={noteEditorRef} visible={Boolean(noteDraft)} initial={noteDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setNoteDraft(null)} onSave={saveNote} />
         <HabitForm ref={habitFormRef} visible={habitFormVisible} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setHabitFormVisible(false)} onSave={saveHabit} />
         <SpheresSheet ref={spheresSheetRef} visible={spheresVisible} spheres={data.spheres} noteCount={countSphereUsage} useTelegramButton={isTelegram} onClose={() => setSpheresVisible(false)} onSave={changeSpheres} onDelete={requestDeleteSphere} />
+        {tip && <TipPopup text={tip} onClose={() => setTip(null)} />}
         <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
       </View>
     </ThemeProvider>
