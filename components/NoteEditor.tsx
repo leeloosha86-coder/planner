@@ -2,21 +2,22 @@ import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'rea
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERES } from '../lib/constants';
-import type { NoteDraft, SphereId } from '../lib/types';
+import type { NoteDraft, SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
-import { ChoiceChip, FieldLabel, PrimaryButton } from './UI';
+import { FieldLabel, PrimaryButton } from './UI';
+import SpherePicker from './SpherePicker';
 
 export interface NoteEditorHandle { save: () => void }
-const EMPTY: NoteDraft = { title: '', text: '', sphere: 'home' };
+const EMPTY: NoteDraft = { title: '', text: '', sphere: '' };
 
 const NoteEditor = forwardRef<NoteEditorHandle, {
   visible: boolean;
   initial: NoteDraft | null;
+  spheres: SphereCustom[];
   useTelegramButton: boolean;
   onClose: () => void;
   onSave: (draft: NoteDraft) => void;
-}>(function NoteEditor({ visible, initial, useTelegramButton, onClose, onSave }, ref) {
+}>(function NoteEditor({ visible, initial, spheres, useTelegramButton, onClose, onSave }, ref) {
   const { colors, serif } = useTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<NoteDraft>(initial || EMPTY);
@@ -31,7 +32,12 @@ const NoteEditor = forwardRef<NoteEditorHandle, {
       setError('Добавьте заголовок или текст заметки');
       return;
     }
-    onSave({ ...draft, title: draft.title.trim() || 'Без названия', text: draft.text.trim() });
+    onSave({
+      ...draft,
+      title: draft.title.trim() || 'Без названия',
+      text: draft.text.trim(),
+      sphere: draft.sphere || spheres[0]?.id || '',
+    });
   };
   useImperativeHandle(ref, () => ({ save }));
 
@@ -66,10 +72,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, {
             maxLength={6000}
             style={[styles.bodyInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
           />
-          <FieldLabel>Сфера</FieldLabel>
-          <View style={styles.spheres}>
-            {(Object.keys(SPHERES) as SphereId[]).map((id) => <ChoiceChip key={id} label={SPHERES[id].name} small selected={draft.sphere === id} color={SPHERES[id].color} onPress={() => setDraft((current) => ({ ...current, sphere: id }))} />)}
-          </View>
+          <SpherePicker spheres={spheres} value={draft.sphere || spheres[0]?.id || ''} onChange={(sphere) => setDraft((current) => ({ ...current, sphere }))} />
           {!!error && <Text style={[styles.error, { color: colors.terra }]}>{error}</Text>}
           {!useTelegramButton && <View style={styles.save}><PrimaryButton label="Сохранить" icon="checkmark" onPress={save} /></View>}
         </ScrollView>
@@ -88,7 +91,6 @@ const styles = StyleSheet.create({
   content: { padding: 20 },
   titleInput: { borderWidth: 1, borderRadius: 18, padding: 16, fontSize: 22, minHeight: 58 },
   bodyInput: { borderWidth: 1, borderRadius: 18, padding: 16, fontSize: 16, lineHeight: 24, minHeight: 220 },
-  spheres: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   save: { marginTop: 24 },
   error: { marginTop: 16, fontSize: 15, lineHeight: 21 },
 });
