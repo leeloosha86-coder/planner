@@ -1,17 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERES } from '../lib/constants';
 import { addDays, dateKey, formatLongDate, fromDateKey, isTaskDone, shortDay, tasksForDate, weekDates } from '../lib/date';
-import type { Task } from '../lib/types';
+import { sphereById } from '../lib/spheres';
+import type { SphereCustom, Task } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { EmptyState, FadeIn } from '../components/UI';
 
 const HOURS = Array.from({ length: 18 }, (_, index) => index + 6);
 
-function TimelineTask({ task, done, onPress, onToggle }: { task: Task; done: boolean; onPress: () => void; onToggle: () => void }) {
+function TimelineTask({ task, spheres, done, onPress, onToggle }: { task: Task; spheres: SphereCustom[]; done: boolean; onPress: () => void; onToggle: () => void }) {
   const { colors } = useTheme();
-  const sphere = SPHERES[task.sphere];
+  const sphere = sphereById(spheres, task.sphere);
   return (
     <View style={[styles.timelineTask, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.taskStripe, { backgroundColor: sphere.color }]} />
@@ -26,8 +26,9 @@ function TimelineTask({ task, done, onPress, onToggle }: { task: Task; done: boo
   );
 }
 
-export default function ScheduleScreen({ tasks, refreshing, onRefresh, onAdd, onEdit, onToggle }: {
+export default function ScheduleScreen({ tasks, spheres, refreshing, onRefresh, onAdd, onEdit, onToggle }: {
   tasks: Task[];
+  spheres: SphereCustom[];
   refreshing: boolean;
   onRefresh: () => void;
   onAdd: (date: string, time: string) => void;
@@ -76,7 +77,7 @@ export default function ScheduleScreen({ tasks, refreshing, onRefresh, onAdd, on
         <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: serif }]}>Без времени</Text>
         <Text style={[styles.sectionCount, { color: colors.muted }]}>{withoutTime.length}</Text>
       </View>
-      {withoutTime.length > 0 ? <View style={styles.noTimeList}>{withoutTime.map((task) => <TimelineTask key={task.id} task={task} done={isTaskDone(task, selected)} onPress={() => onEdit(task, selected)} onToggle={() => onToggle(task, selected)} />)}</View> : <View style={[styles.noTimeEmpty, { borderColor: colors.border }]}><Ionicons name="checkmark-done-outline" size={18} color={colors.sage} /><Text style={[styles.noTimeEmptyText, { color: colors.muted }]}>Здесь появятся задачи без точного времени</Text></View>}
+      {withoutTime.length > 0 ? <View style={styles.noTimeList}>{withoutTime.map((task) => <TimelineTask key={task.id} task={task} spheres={spheres} done={isTaskDone(task, selected)} onPress={() => onEdit(task, selected)} onToggle={() => onToggle(task, selected)} />)}</View> : <View style={[styles.noTimeEmpty, { borderColor: colors.border }]}><Ionicons name="checkmark-done-outline" size={18} color={colors.sage} /><Text style={[styles.noTimeEmptyText, { color: colors.muted }]}>Здесь появятся задачи без точного времени</Text></View>}
       <View style={styles.sectionHeading}>
         <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: serif }]}>По часам</Text>
         <View style={styles.hourHint}><Ionicons name="add" size={15} color={colors.terra} /><Text style={[styles.hourHintText, { color: colors.muted }]}>нажмите на час</Text></View>
@@ -101,7 +102,7 @@ export default function ScheduleScreen({ tasks, refreshing, onRefresh, onAdd, on
                 {isCurrent && <View style={[styles.nowDot, { backgroundColor: colors.terra }]} />}
               </View>
               <Pressable disabled={hourTasks.length > 0} onPress={() => onAdd(selected, `${String(hour).padStart(2, '0')}:00`)} style={[styles.hourSlot, { borderTopColor: isCurrent ? colors.terra : colors.border }]}>
-                {hourTasks.length > 0 ? <View style={styles.hourTasks}>{hourTasks.map((task) => <TimelineTask key={task.id} task={task} done={isTaskDone(task, selected)} onPress={() => onEdit(task, selected)} onToggle={() => onToggle(task, selected)} />)}</View> : <View style={styles.emptyHour}><View style={[styles.emptyHourButton, { backgroundColor: colors.subtle }]}><Ionicons name="add" size={18} color={colors.sage} /></View><Text style={[styles.emptyHourText, { color: colors.muted }]}>Свободно</Text></View>}
+                {hourTasks.length > 0 ? <View style={styles.hourTasks}>{hourTasks.map((task) => <TimelineTask key={task.id} task={task} spheres={spheres} done={isTaskDone(task, selected)} onPress={() => onEdit(task, selected)} onToggle={() => onToggle(task, selected)} />)}</View> : <View style={styles.emptyHour}><View style={[styles.emptyHourButton, { backgroundColor: colors.subtle }]}><Ionicons name="add" size={18} color={colors.sage} /></View><Text style={[styles.emptyHourText, { color: colors.muted }]}>Свободно</Text></View>}
               </Pressable>
             </View>
           </FadeIn>
