@@ -1,7 +1,7 @@
 export type SphereId = string;
 export type SphereFilter = 'all' | SphereId;
 export type RepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly';
-export type TabId = 'today' | 'schedule' | 'habits' | 'notes';
+export type TabId = 'today' | 'schedule' | 'habits' | 'notes' | 'shopping';
 
 export interface SphereCustom {
   id: string;
@@ -38,11 +38,18 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface ShoppingItem {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 export interface PlannerData {
   tasks: Task[];
   habits: Habit[];
   notes: Note[];
   spheres: SphereCustom[];
+  shopping: ShoppingItem[];
   xp: number;
   botStarted: boolean;
   updatedAt: string;
