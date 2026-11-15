@@ -2,26 +2,28 @@ import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'rea
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { REPEAT_OPTIONS, SPHERES } from '../lib/constants';
+import { REPEAT_OPTIONS } from '../lib/constants';
 import { formatLongDate, fromDateKey, repeatDescription } from '../lib/date';
-import type { RepeatRule, SphereId, TaskDraft } from '../lib/types';
+import type { RepeatRule, SphereCustom, TaskDraft } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { ChoiceChip, FieldLabel, PrimaryButton } from './UI';
+import SpherePicker from './SpherePicker';
 
 export interface TaskFormHandle { save: () => void }
 
 interface Props {
   visible: boolean;
   initial: TaskDraft | null;
+  spheres: SphereCustom[];
   useTelegramButton: boolean;
   onClose: () => void;
   onSave: (draft: TaskDraft) => void;
   onDelete?: () => void;
 }
 
-const EMPTY: TaskDraft = { title: '', time: '', repeat: 'none', sphere: 'work', date: '' };
+const EMPTY: TaskDraft = { title: '', time: '', repeat: 'none', sphere: '', date: '' };
 
-const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, initial, useTelegramButton, onClose, onSave, onDelete }, ref) {
+const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, initial, spheres, useTelegramButton, onClose, onSave, onDelete }, ref) {
   const { colors, serif } = useTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<TaskDraft>(initial || EMPTY);
@@ -46,7 +48,8 @@ const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, 
         return;
       }
     }
-    onSave({ ...draft, title: draft.title.trim() });
+    const sphere = draft.sphere || spheres[0]?.id || '';
+    onSave({ ...draft, title: draft.title.trim(), sphere });
   };
   useImperativeHandle(ref, () => ({ save }));
 
@@ -111,12 +114,7 @@ const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, 
                 {REPEAT_OPTIONS.map((option) => <ChoiceChip key={option.id} label={option.label} small selected={draft.repeat === option.id} color={colors.forest} onPress={() => setDraft((current) => ({ ...current, repeat: option.id as RepeatRule }))} />)}
               </View>
               <Text style={[styles.hint, { color: colors.muted }]}>{repeatDescription(draft.repeat, draft.date)}</Text>
-              <FieldLabel>Сфера</FieldLabel>
-              <View style={styles.sphereGrid}>
-                {(Object.keys(SPHERES) as SphereId[]).map((id) => (
-                  <View key={id} style={styles.sphereCell}><ChoiceChip label={SPHERES[id].name} selected={draft.sphere === id} color={SPHERES[id].color} onPress={() => setDraft((current) => ({ ...current, sphere: id }))} /></View>
-                ))}
-              </View>
+              <SpherePicker spheres={spheres} value={draft.sphere || spheres[0]?.id || ''} onChange={(sphere) => setDraft((current) => ({ ...current, sphere }))} />
               {!!error && <View style={[styles.errorBox, { backgroundColor: colors.terraSoft }]}><Ionicons name="alert-circle-outline" size={18} color={colors.terra} /><Text style={[styles.error, { color: colors.terra }]}>{error}</Text></View>}
               {!useTelegramButton && <View style={styles.saveButton}><PrimaryButton label="Сохранить" icon="checkmark" onPress={save} /></View>}
               {draft.id && onDelete && <Pressable onPress={onDelete} style={styles.deleteButton}><Ionicons name="trash-outline" size={18} color={colors.terra} /><Text style={[styles.deleteText, { color: colors.terra }]}>Удалить задачу</Text></Pressable>}
@@ -149,11 +147,9 @@ const styles = StyleSheet.create({
   quickTimes: { flexDirection: 'row', gap: 8, marginTop: 9 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   hint: { fontSize: 13, lineHeight: 18, marginTop: 9 },
-  sphereGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
-  sphereCell: { width: '50%', paddingHorizontal: 4, marginBottom: 8 },
-  errorBox: { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 14, marginTop: 16 },
-  error: { fontSize: 14, flex: 1 },
   saveButton: { marginTop: 22 },
-  deleteButton: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center', paddingVertical: 18 },
-  deleteText: { fontSize: 15, fontWeight: '600' },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, padding: 11, marginTop: 16 },
+  error: { flex: 1, fontSize: 13.5, lineHeight: 19 },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 18, paddingVertical: 10 },
+  deleteText: { fontSize: 14.5, fontWeight: '600' },
 });
