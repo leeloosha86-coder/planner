@@ -10,6 +10,7 @@ const TABS: { id: TabId; label: string; icon: keyof typeof Ionicons.glyphMap; ac
   { id: 'schedule', label: 'Расписание', icon: 'calendar-outline', activeIcon: 'calendar' },
   { id: 'habits', label: 'Привычки', icon: 'leaf-outline', activeIcon: 'leaf' },
   { id: 'notes', label: 'Заметки', icon: 'document-text-outline', activeIcon: 'document-text' },
+  { id: 'shopping', label: 'Покупки', icon: 'cart-outline', activeIcon: 'cart' },
 ];
 
 export default function BottomNav({ active, onChange, raised = false, telegramBottom = 0 }: {
