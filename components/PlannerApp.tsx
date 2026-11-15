@@ -8,11 +8,13 @@ import { dateKey, isTaskDone, makeId } from '../lib/date';
 import { botUsername, createInitialData, loadData, persistLocal, persistRemote } from '../lib/storage';
 import { buildTheme, ThemeProvider } from '../lib/theme';
 import { useTelegram } from '../lib/telegram';
-import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, SphereFilter, SphereId, TabId, Task, TaskDraft } from '../lib/types';
+import { fallbackSphereId } from '../lib/spheres';
+import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, SphereCustom, SphereFilter, TabId, Task, TaskDraft } from '../lib/types';
 import BottomNav from './BottomNav';
 import TaskForm, { TaskFormHandle } from './TaskForm';
 import NoteEditor, { NoteEditorHandle } from './NoteEditor';
 import HabitForm, { HabitFormHandle } from './HabitForm';
+import SpheresSheet, { SpheresSheetHandle } from './SpheresSheet';
 import { ConfirmDialog, FadeIn } from './UI';
 import ElfPortrait from './ElfPortrait';
 import SparkBurst from './SparkBurst';
@@ -37,6 +39,7 @@ export default function PlannerApp() {
   const [taskDraft, setTaskDraft] = useState<TaskDraft | null>(null);
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
   const [habitFormVisible, setHabitFormVisible] = useState(false);
+  const [spheresVisible, setSpheresVisible] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [levelUpEvent, setLevelUpEvent] = useState<{ id: number; level: number } | null>(null);
   const [levelUpSignal, setLevelUpSignal] = useState(0);
@@ -45,6 +48,7 @@ export default function PlannerApp() {
   const taskFormRef = useRef<TaskFormHandle>(null);
   const noteEditorRef = useRef<NoteEditorHandle>(null);
   const habitFormRef = useRef<HabitFormHandle>(null);
+  const spheresSheetRef = useRef<SpheresSheetHandle>(null);
   const today = dateKey(new Date());
   const telegramBottom = Math.max(webApp?.safeAreaInset?.bottom || 0, webApp?.contentSafeAreaInset?.bottom || 0);
   const topInset = Math.max(insets.top, webApp?.contentSafeAreaInset?.top || 0, webApp?.safeAreaInset?.top || 0);
@@ -127,25 +131,27 @@ export default function PlannerApp() {
 
   const openNewTask = useCallback((date = dateKey(new Date()), time = '') => {
     setTaskDraft({
-      title: '', time, repeat: 'none', sphere: filter === 'all' ? 'work' : filter, date,
+      title: '', time, repeat: 'none', sphere: filter === 'all' ? (data.spheres[0]?.id || '') : filter, date,
     });
-  }, [filter]);
+  }, [data.spheres, filter]);
 
   const closeTop = useCallback(() => {
     if (confirm) setConfirm(null);
     else if (taskDraft) setTaskDraft(null);
     else if (noteDraft) setNoteDraft(null);
     else if (habitFormVisible) setHabitFormVisible(false);
-  }, [confirm, habitFormVisible, noteDraft, taskDraft]);
+    else if (spheresVisible) setSpheresVisible(false);
+  }, [confirm, habitFormVisible, noteDraft, spheresVisible, taskDraft]);
 
   useEffect(() => {
     if (!webApp) return;
-    const formOpen = Boolean(taskDraft || noteDraft || habitFormVisible);
+    const formOpen = Boolean(taskDraft || noteDraft || habitFormVisible || spheresVisible);
     const visible = formOpen || activeTab === 'today';
     const handler = () => {
       if (taskDraft) taskFormRef.current?.save();
       else if (noteDraft) noteEditorRef.current?.save();
       else if (habitFormVisible) habitFormRef.current?.save();
+      else if (spheresVisible) spheresSheetRef.current?.save();
       else openNewTask();
     };
     webApp.MainButton.setParams({
@@ -158,15 +164,15 @@ export default function PlannerApp() {
     if (visible) webApp.MainButton.show(); else webApp.MainButton.hide();
     webApp.MainButton.onClick(handler);
     return () => webApp.MainButton.offClick(handler);
-  }, [activeTab, habitFormVisible, noteDraft, openNewTask, taskDraft, webApp]);
+  }, [activeTab, habitFormVisible, noteDraft, openNewTask, spheresVisible, taskDraft, webApp]);
 
   useEffect(() => {
     if (!webApp) return;
-    const visible = Boolean(taskDraft || noteDraft || habitFormVisible || confirm);
+    const visible = Boolean(taskDraft || noteDraft || habitFormVisible || spheresVisible || confirm);
     if (visible) webApp.BackButton.show(); else webApp.BackButton.hide();
     webApp.BackButton.onClick(closeTop);
     return () => webApp.BackButton.offClick(closeTop);
-  }, [closeTop, confirm, habitFormVisible, noteDraft, taskDraft, webApp]);
+  }, [closeTop, confirm, habitFormVisible, noteDraft, spheresVisible, taskDraft, webApp]);
 
   const toggleTask = useCallback((task: Task, occurrenceDate = today) => {
     const wasDone = isTaskDone(task, occurrenceDate);
@@ -229,14 +235,14 @@ export default function PlannerApp() {
     }));
   };
 
-  const saveHabit = (name: string, sphere: SphereId) => {
+  const saveHabit = (name: string, sphere: string) => {
     haptic('light');
     const habit: Habit = { id: makeId('habit'), name, sphere, history: [], createdAt: new Date().toISOString() };
     commit((current) => ({ ...current, habits: [...current.habits, habit] }));
     setHabitFormVisible(false);
   };
 
-  const openNewNote = () => setNoteDraft({ title: '', text: '', sphere: 'home' });
+  const openNewNote = () => setNoteDraft({ title: '', text: '', sphere: data.spheres[0]?.id || '' });
   const openNote = (note: Note) => setNoteDraft({ id: note.id, title: note.title, text: note.text, sphere: note.sphere });
   const saveNote = (draft: NoteDraft) => {
     haptic('light');
@@ -258,6 +264,47 @@ export default function PlannerApp() {
       onConfirm: () => {
         commit((current) => ({ ...current, notes: current.notes.filter((item) => item.id !== note.id) }));
         haptic('medium');
+      },
+    });
+  };
+
+  const changeSpheres = (next: SphereCustom[]) => {
+    haptic('light');
+    commit((current) => {
+      const keep = (id: string) => fallbackSphereId(next, id);
+      return {
+        ...current,
+        spheres: next,
+        tasks: current.tasks.map((task) => ({ ...task, sphere: keep(task.sphere) })),
+        habits: current.habits.map((habit) => ({ ...habit, sphere: keep(habit.sphere) })),
+        notes: current.notes.map((note) => ({ ...note, sphere: keep(note.sphere) })),
+      };
+    });
+    setSpheresVisible(false);
+  };
+
+  const countSphereUsage = useCallback((id: string) => {
+    const tasks = data.tasks.filter((task) => task.sphere === id).length;
+    const habits = data.habits.filter((habit) => habit.sphere === id).length;
+    const notes = data.notes.filter((note) => note.sphere === id).length;
+    return tasks + habits + notes;
+  }, [data.habits, data.notes, data.tasks]);
+
+  const requestDeleteSphere = (sphere: SphereCustom) => {
+    if (data.spheres.length <= 1) {
+      setSyncError('Должна остаться хотя бы одна сфера');
+      return;
+    }
+    const used = countSphereUsage(sphere.id);
+    const target = data.spheres.find((item) => item.id !== sphere.id) || data.spheres[0];
+    setConfirm({
+      title: `Удалить сферу «${sphere.name}»?`,
+      message: used > 0
+        ? `К этой сфере привязано записей: ${used}. Они не пропадут и перейдут в сферу «${target.name}».`
+        : 'Сфера пустая, её можно удалить без потерь.',
+      confirmLabel: 'Удалить',
+      onConfirm: () => {
+        changeSpheres(data.spheres.filter((item) => item.id !== sphere.id));
       },
     });
   };
@@ -285,10 +332,10 @@ export default function PlannerApp() {
               <Text style={[styles.loaderTitle, { color: colors.forest, fontFamily: serif }]}>Просыпаем лес…</Text>
               <Text style={[styles.loaderText, { color: colors.muted }]}>Собираем ваши дела и заметки</Text>
             </View> : <>
-              {activeTab === 'today' && <TodayScreen tasks={data.tasks} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} />}
-              {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
-              {activeTab === 'habits' && <HabitsScreen habits={data.habits} refreshing={refreshing} onRefresh={hydrate} onMark={markHabit} onAdd={() => setHabitFormVisible(true)} />}
-              {activeTab === 'notes' && <NotesScreen notes={data.notes} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
+              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} />}
+              {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
+              {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onMark={markHabit} onAdd={() => setHabitFormVisible(true)} />}
+              {activeTab === 'notes' && <NotesScreen notes={data.notes} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
             </>}
           </View>
           {hydrated && activeTab === 'today' && <Pressable onPress={() => openNewTask()} accessibilityLabel="Добавить задачу" style={({ pressed }) => [styles.fab, { backgroundColor: colors.terra, bottom: fabBottom, shadowColor: colors.shadow }, pressed && { transform: [{ scale: 0.92 }] }]}>
@@ -307,9 +354,10 @@ export default function PlannerApp() {
             </FadeIn>
           </View>}
         </View>
-        <TaskForm ref={taskFormRef} visible={Boolean(taskDraft)} initial={taskDraft} useTelegramButton={isTelegram} onClose={() => setTaskDraft(null)} onSave={saveTask} onDelete={taskDraft?.id ? requestDeleteTask : undefined} />
-        <NoteEditor ref={noteEditorRef} visible={Boolean(noteDraft)} initial={noteDraft} useTelegramButton={isTelegram} onClose={() => setNoteDraft(null)} onSave={saveNote} />
-        <HabitForm ref={habitFormRef} visible={habitFormVisible} useTelegramButton={isTelegram} onClose={() => setHabitFormVisible(false)} onSave={saveHabit} />
+        <TaskForm ref={taskFormRef} visible={Boolean(taskDraft)} initial={taskDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setTaskDraft(null)} onSave={saveTask} onDelete={taskDraft?.id ? requestDeleteTask : undefined} />
+        <NoteEditor ref={noteEditorRef} visible={Boolean(noteDraft)} initial={noteDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setNoteDraft(null)} onSave={saveNote} />
+        <HabitForm ref={habitFormRef} visible={habitFormVisible} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setHabitFormVisible(false)} onSave={saveHabit} />
+        <SpheresSheet ref={spheresSheetRef} visible={spheresVisible} spheres={data.spheres} noteCount={countSphereUsage} useTelegramButton={isTelegram} onClose={() => setSpheresVisible(false)} onSave={changeSpheres} onDelete={requestDeleteSphere} />
         <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
       </View>
     </ThemeProvider>
