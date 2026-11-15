@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SPHERES } from '../lib/constants';
-import type { Task } from '../lib/types';
+import { sphereById } from '../lib/spheres';
+import type { SphereCustom, Task } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import SparkBurst from './SparkBurst';
 import { FadeIn } from './UI';
 
-export default function TaskCard({ task, done, onToggle, onPress, index = 0 }: {
+export default function TaskCard({ task, spheres, done, onToggle, onPress, index = 0 }: {
   task: Task;
+  spheres: SphereCustom[];
   done: boolean;
   onToggle: () => void;
   onPress: () => void;
@@ -16,7 +17,7 @@ export default function TaskCard({ task, done, onToggle, onPress, index = 0 }: {
 }) {
   const { colors, cardShadow } = useTheme();
   const [sparks, setSparks] = useState(0);
-  const sphere = SPHERES[task.sphere];
+  const sphere = sphereById(spheres, task.sphere);
   const toggle = () => {
     if (!done) setSparks((value) => value + 1);
     onToggle();
@@ -43,7 +44,7 @@ export default function TaskCard({ task, done, onToggle, onPress, index = 0 }: {
           </View>
         </Pressable>
         <View style={[styles.sphereTag, { backgroundColor: sphere.color }]}>
-          <Text style={[styles.sphereText, { color: colors.cream }]} numberOfLines={2}>{sphere.shortName}</Text>
+          <Text style={[styles.sphereText, { color: colors.cream }]} numberOfLines={2}>{sphere.name}</Text>
         </View>
       </View>
     </FadeIn>
