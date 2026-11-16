@@ -1,23 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, LEVELS, MAX_XP, TASK_XP } from '../lib/constants';
-import { dateKey, isTaskDone, makeId } from '../lib/date';
+import { COLORS, FOCUS_XP, LEVELS, MAX_XP, TASK_XP } from '../lib/constants';
+import { addDays, dateKey, isTaskDone, makeId, tasksForDate } from '../lib/date';
 import { botUsername, createInitialData, loadData, persistLocal, persistRemote } from '../lib/storage';
 import { buildTheme, ThemeProvider } from '../lib/theme';
 import { useTelegram } from '../lib/telegram';
 import { fallbackSphereId } from '../lib/spheres';
 import { tipForDate } from '../lib/tips';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, ShoppingItem, SphereCustom, SphereFilter, TabId, Task, TaskDraft } from '../lib/types';
+import type { ConfirmState, Habit, Note, NoteDraft, PlannerData, ShoppingItem, ShoppingTemplate, SphereCustom, SphereFilter, TabId, Task, TaskDraft, UndoState } from '../lib/types';
 import BottomNav from './BottomNav';
 import TaskForm, { TaskFormHandle } from './TaskForm';
 import NoteEditor, { NoteEditorHandle } from './NoteEditor';
 import HabitForm, { HabitFormHandle } from './HabitForm';
 import SpheresSheet, { SpheresSheetHandle } from './SpheresSheet';
 import TipPopup from './TipPopup';
+import UndoBar from './UndoBar';
+import FocusSheet from './FocusSheet';
+import RitualSheet from './RitualSheet';
+import StatsScreen from '../screens/StatsScreen';
 import { ConfirmDialog, FadeIn } from './UI';
 import ElfPortrait from './ElfPortrait';
 import SparkBurst from './SparkBurst';
@@ -47,6 +51,10 @@ export default function PlannerApp() {
   const [habitFormVisible, setHabitFormVisible] = useState(false);
   const [spheresVisible, setSpheresVisible] = useState(false);
   const [tip, setTip] = useState<string | null>(null);
+  const [undo, setUndo] = useState<UndoState | null>(null);
+  const [focusVisible, setFocusVisible] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const [ritualVisible, setRitualVisible] = useState(false);
   const tipShown = useRef(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [levelUpEvent, setLevelUpEvent] = useState<{ id: number; level: number } | null>(null);
@@ -234,15 +242,14 @@ export default function PlannerApp() {
   const requestDeleteTask = () => {
     if (!taskDraft?.id) return;
     const id = taskDraft.id;
-    setConfirm({
-      title: 'Удалить задачу?',
-      message: 'Задача и её повторы будут удалены. Полученный опыт сохранится.',
-      confirmLabel: 'Удалить',
-      onConfirm: () => {
-        commit((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== id) }));
-        setTaskDraft(null);
-        haptic('medium');
-      },
+    const removed = data.tasks.find((task) => task.id === id);
+    if (!removed) return;
+    commit((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== id) }));
+    setTaskDraft(null);
+    haptic('medium');
+    setUndo({
+      message: `Задача «${removed.title}» удалена`,
+      restore: () => commit((current) => ({ ...current, tasks: [...current.tasks, removed] })),
     });
   };
 
@@ -388,6 +395,55 @@ export default function PlannerApp() {
     });
   };
 
+  const saveTemplate = (name: string) => {
+    const items = data.shopping.filter((item) => !item.done).map((item) => item.title);
+    if (!items.length) {
+      setSyncError('В списке нет продуктов, шаблон сохранять не из чего');
+      return;
+    }
+    haptic('light');
+    const template: ShoppingTemplate = { id: makeId('tpl'), name, items };
+    commit((current) => ({
+      ...current,
+      templates: [...current.templates.filter((entry) => entry.name.toLocaleLowerCase('ru-RU') !== name.toLocaleLowerCase('ru-RU')), template],
+    }));
+  };
+
+  const applyTemplate = (template: ShoppingTemplate) => {
+    haptic('light');
+    commit((current) => {
+      const existing = new Set(current.shopping.map((item) => item.title.toLocaleLowerCase('ru-RU')));
+      const fresh = template.items
+        .filter((title) => !existing.has(title.toLocaleLowerCase('ru-RU')))
+        .map((title) => ({ id: makeId('item'), title, done: false }));
+      return { ...current, shopping: [...current.shopping, ...fresh] };
+    });
+  };
+
+  const deleteTemplate = (template: ShoppingTemplate) => {
+    haptic('light');
+    commit((current) => ({ ...current, templates: current.templates.filter((entry) => entry.id !== template.id) }));
+  };
+
+  const finishFocus = (minutes: number) => {
+    const today = dateKey(new Date());
+    notify('success');
+    commit((current) => ({
+      ...current,
+      xp: Math.max(0, Math.min(MAX_XP, current.xp + FOCUS_XP)),
+      focus: [...current.focus.filter((session) => session.date !== today), {
+        date: today,
+        minutes: (current.focus.find((session) => session.date === today)?.minutes || 0) + minutes,
+      }],
+    }));
+  };
+
+  const moveToTomorrow = (task: Task) => {
+    const tomorrow = dateKey(addDays(new Date(), 1));
+    haptic('light');
+    commit((current) => ({ ...current, tasks: current.tasks.map((entry) => entry.id === task.id ? { ...entry, date: tomorrow } : entry) }));
+  };
+
   const openBot = () => {
     const url = botUsername ? `https://t.me/${botUsername}?start=planner` : 'https://t.me/';
     if (webApp) webApp.openTelegramLink(url);
@@ -411,11 +467,11 @@ export default function PlannerApp() {
               <Text style={[styles.loaderTitle, { color: colors.forest, fontFamily: serif }]}>Просыпаем лес…</Text>
               <Text style={[styles.loaderText, { color: colors.muted }]}>Собираем ваши дела и заметки</Text>
             </View> : <>
-              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} />}
+              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onFocus={() => setFocusVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} />}
               {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
               {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onMark={markHabit} onAdd={() => setHabitFormVisible(true)} />}
               {activeTab === 'notes' && <NotesScreen notes={data.notes} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
-              {activeTab === 'shopping' && <ShoppingScreen items={data.shopping} refreshing={refreshing} onRefresh={hydrate} onAdd={addShoppingItem} onToggle={toggleShoppingItem} onRemove={removeShoppingItem} onClear={requestNewShoppingList} />}
+              {activeTab === 'shopping' && <ShoppingScreen items={data.shopping} templates={data.templates} refreshing={refreshing} onRefresh={hydrate} onAdd={addShoppingItem} onToggle={toggleShoppingItem} onRemove={removeShoppingItem} onClear={requestNewShoppingList} onSaveTemplate={saveTemplate} onApplyTemplate={applyTemplate} onDeleteTemplate={deleteTemplate} />}
             </>}
           </View>
           {hydrated && activeTab === 'today' && <Pressable onPress={() => openNewTask()} accessibilityLabel="Добавить задачу" style={({ pressed }) => [styles.fab, { backgroundColor: colors.terra, bottom: fabBottom, shadowColor: colors.shadow }, pressed && { transform: [{ scale: 0.92 }] }]}>
@@ -438,6 +494,26 @@ export default function PlannerApp() {
         <NoteEditor ref={noteEditorRef} visible={Boolean(noteDraft)} initial={noteDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setNoteDraft(null)} onSave={saveNote} />
         <HabitForm ref={habitFormRef} visible={habitFormVisible} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setHabitFormVisible(false)} onSave={saveHabit} />
         <SpheresSheet ref={spheresSheetRef} visible={spheresVisible} spheres={data.spheres} noteCount={countSphereUsage} useTelegramButton={isTelegram} onClose={() => setSpheresVisible(false)} onSave={changeSpheres} onDelete={requestDeleteSphere} />
+        <FocusSheet visible={focusVisible} onClose={() => setFocusVisible(false)} onFinish={finishFocus} />
+        <RitualSheet
+          visible={ritualVisible}
+          onClose={() => setRitualVisible(false)}
+          tasks={tasksForDate(data.tasks, today)}
+          doneCount={tasksForDate(data.tasks, today).filter((task) => isTaskDone(task, today)).length}
+          total={tasksForDate(data.tasks, today).length}
+          onMove={moveToTomorrow}
+        />
+        <Modal visible={statsVisible} animationType="slide" onRequestClose={() => setStatsVisible(false)} statusBarTranslucent>
+          <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: topInset }}>
+            <View style={styles.statsHeader}>
+              <Pressable onPress={() => setStatsVisible(false)} style={[styles.statsBack, { backgroundColor: colors.card }]} accessibilityLabel="Закрыть итоги">
+                <Ionicons name="arrow-back" size={23} color={colors.forest} />
+              </Pressable>
+            </View>
+            <StatsScreen data={data} refreshing={refreshing} onRefresh={hydrate} celebrationSignal={levelUpSignal} />
+          </View>
+        </Modal>
+        <UndoBar state={undo} onClose={() => setUndo(null)} />
         {tip && <TipPopup text={tip} onClose={() => setTip(null)} />}
         <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
       </View>
@@ -453,6 +529,8 @@ const styles = StyleSheet.create({
   loaderTitle: { fontSize: 25, marginTop: 16 },
   loaderText: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 7 },
   fab: { position: 'absolute', right: 20, width: 59, height: 59, borderRadius: 30, alignItems: 'center', justifyContent: 'center', zIndex: 40, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+  statsHeader: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  statsBack: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   toastPosition: { position: 'absolute', left: 16, right: 16, alignItems: 'center', zIndex: 100 },
   levelToast: { width: '100%', maxWidth: 400, borderRadius: 20, borderWidth: 1.5, padding: 10, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 12, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.16, shadowRadius: 16, elevation: 10, overflow: 'visible' },
   levelToastText: { flex: 1 },
