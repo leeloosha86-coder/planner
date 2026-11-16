@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { repeatLabel } from '../lib/date';
 import { sphereById } from '../lib/spheres';
 import type { SphereCustom, Task } from '../lib/types';
 import { useTheme } from '../lib/theme';
@@ -37,10 +38,13 @@ export default function TaskCard({ task, spheres, done, onToggle, onPress, index
           {done && <Ionicons name="checkmark" size={18} color={colors.cream} />}
         </Pressable>
         <Pressable onPress={onPress} style={styles.content} accessibilityLabel={`Редактировать задачу: ${task.title}`}>
-          <Text style={[styles.title, { color: done ? colors.muted : colors.text }, done && styles.done]}>{task.title}</Text>
+          <View style={styles.titleRow}>
+            {task.important && !done && <View style={[styles.importantDot, { backgroundColor: colors.terra }]} />}
+            <Text style={[styles.title, { color: done ? colors.muted : colors.text }, done && styles.done]}>{task.title}</Text>
+          </View>
           <View style={styles.meta}>
             {!!task.time && <View style={styles.metaItem}><Ionicons name="time-outline" size={14} color={colors.muted} /><Text style={[styles.metaText, { color: colors.muted }]}>{task.time}</Text></View>}
-            {task.repeat !== 'none' && <View style={styles.metaItem}><Ionicons name="repeat-outline" size={15} color={colors.muted} /><Text style={[styles.metaText, { color: colors.muted }]}>{task.repeat === 'daily' ? 'ежедневно' : task.repeat === 'weekdays' ? 'по будням' : 'еженедельно'}</Text></View>}
+            {task.repeat !== 'none' && <View style={styles.metaItem}><Ionicons name="repeat-outline" size={15} color={colors.muted} /><Text style={[styles.metaText, { color: colors.muted }]}>{repeatLabel(task.repeat)}</Text></View>}
           </View>
         </Pressable>
         <View style={[styles.sphereTag, { backgroundColor: sphere.color }]}>
@@ -56,7 +60,9 @@ const styles = StyleSheet.create({
   card: { minHeight: 76, borderRadius: 20, borderWidth: 1, paddingVertical: 13, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', overflow: 'visible' },
   check: { width: 29, height: 29, borderRadius: 15, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginRight: 12, zIndex: 3 },
   content: { flex: 1, minWidth: 0, paddingRight: 8, paddingVertical: 2 },
-  title: { fontSize: 15.5, lineHeight: 21, fontWeight: '600' },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  importantDot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
+  title: { flex: 1, fontSize: 15.5, lineHeight: 21, fontWeight: '600' },
   done: { textDecorationLine: 'line-through' },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 5 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
