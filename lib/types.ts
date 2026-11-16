@@ -1,6 +1,6 @@
 export type SphereId = string;
 export type SphereFilter = 'all' | SphereId;
-export type RepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly';
+export type RepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly' | 'quarterly' | 'yearly';
 export type TabId = 'today' | 'schedule' | 'habits' | 'notes' | 'shopping';
 
 export interface SphereCustom {
@@ -19,6 +19,7 @@ export interface Task {
   createdAt: string;
   completed: boolean;
   completedDates: string[];
+  important: boolean;
 }
 
 export interface Habit {
@@ -63,6 +64,7 @@ export interface TaskDraft {
   repeat: RepeatRule;
   sphere: SphereId;
   date: string;
+  important: boolean;
 }
 
 export interface NoteDraft {
