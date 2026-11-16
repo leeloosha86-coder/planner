@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dateKey, makeId, rolloverOverdueTasks } from './date';
 import { DEFAULT_SPHERES, fallbackSphereId, modernSphereId, normalizeSpheres } from './spheres';
 import { getTelegram } from './telegram';
-import type { Habit, Note, PlannerData, ShoppingItem, Task } from './types';
+import type { FocusSession, Habit, Note, PlannerData, ShoppingItem, ShoppingTemplate, Task } from './types';
 
 const STORAGE_KEY = 'moy-planirovshchik-data-v1';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
@@ -70,6 +70,8 @@ export function createInitialData(): PlannerData {
     notes: initialNotes(),
     spheres: DEFAULT_SPHERES.map((sphere) => ({ ...sphere })),
     shopping: [],
+    templates: [],
+    focus: [],
     xp: 30,
     botStarted: false,
     updatedAt: new Date().toISOString(),
@@ -85,6 +87,26 @@ function normalizeShopping(value: unknown): ShoppingItem[] {
     .map((item) => ({ id: item.id, title: item.title.slice(0, 120), done: Boolean(item.done) }));
 }
 
+function normalizeTemplates(value: unknown): ShoppingTemplate[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is ShoppingTemplate => typeof item === 'object' && item !== null && typeof item.id === 'string' && typeof item.name === 'string' && Array.isArray(item.items))
+    .slice(0, 50)
+    .map((item) => ({
+      id: item.id,
+      name: item.name.slice(0, 60),
+      items: item.items.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0).slice(0, 300).map((entry) => entry.slice(0, 120)),
+    }));
+}
+
+function normalizeFocus(value: unknown): FocusSession[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is FocusSession => typeof item === 'object' && item !== null && typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && Number.isFinite(Number(item.minutes)))
+    .slice(-400)
+    .map((item) => ({ date: item.date, minutes: Math.max(0, Math.min(1440, Math.round(Number(item.minutes)))) }));
+}
+
 export function normalize(value: Partial<PlannerData>): PlannerData {
   const fallback = createInitialData();
   const spheres = normalizeSpheres(value.spheres);
@@ -98,6 +120,8 @@ export function normalize(value: Partial<PlannerData>): PlannerData {
     notes: notes.map((note) => ({ ...note, sphere: adopt(note.sphere) })),
     spheres,
     shopping: normalizeShopping(value.shopping),
+    templates: normalizeTemplates(value.templates),
+    focus: normalizeFocus(value.focus),
     xp: Math.max(0, Math.min(500, Number(value.xp) || 0)),
     botStarted: Boolean(value.botStarted),
     updatedAt: value.updatedAt || fallback.updatedAt,
