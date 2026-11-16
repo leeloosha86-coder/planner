@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { COLORS } from '../lib/constants';
-import { colorForIndex, MAX_SPHERE_NAME, MAX_SPHERES, SPHERE_COLORS, makeSphereId, cleanSphereName } from '../lib/spheres';
+import { freeColor, MAX_SPHERE_NAME, MAX_SPHERES, SPHERE_COLORS, makeSphereId, cleanSphereName } from '../lib/spheres';
 import type { SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { FieldLabel, PrimaryButton } from './UI';
@@ -59,7 +59,7 @@ const SpheresSheet = forwardRef<SpheresSheetHandle, {
       setError(`Больше ${MAX_SPHERES} сфер добавить нельзя`);
       return;
     }
-    const next: SphereCustom = { id: makeSphereId(), name, color: colorForIndex(draft.length) };
+    const next: SphereCustom = { id: makeSphereId(), name, color: freeColor(draft, draft.length) };
     setDraft((current) => [...current, next]);
     setNewName('');
     setError('');
@@ -70,7 +70,7 @@ const SpheresSheet = forwardRef<SpheresSheetHandle, {
     const pending = cleanSphereName(newName);
     if (pending && working.length < MAX_SPHERES) {
       const duplicate = working.some((sphere) => sphere.name.toLocaleLowerCase('ru-RU') === pending.toLocaleLowerCase('ru-RU'));
-      if (!duplicate) working = [...working, { id: makeSphereId(), name: pending, color: colorForIndex(working.length) }];
+      if (!duplicate) working = [...working, { id: makeSphereId(), name: pending, color: freeColor(working, working.length) }];
     }
     const cleaned = working;
     if (cleaned.length === 0) {
@@ -157,7 +157,7 @@ const SpheresSheet = forwardRef<SpheresSheetHandle, {
             </Pressable>
           </View>
           <Text style={[styles.hint, { color: colors.muted }]}>
-            {canAdd ? `Можно до ${MAX_SPHERES} сфер, в названии до ${MAX_SPHERE_NAME} символов` : `Достигнут предел: ${MAX_SPHERES} сфер`}
+            {canAdd ? `Можно до ${MAX_SPHERES} сфер и ${SPHERE_COLORS.length} цветов — каждому свой, в названии до ${MAX_SPHERE_NAME} символов` : `Достигнут предел: ${MAX_SPHERES} сфер`}
           </Text>
           {filled === 0 && <Text style={[styles.hint, { color: colors.terra }]}>Оставьте хотя бы одну сферу</Text>}
           {!!error && <View style={[styles.errorBox, { backgroundColor: colors.terraSoft }]}><Ionicons name="alert-circle-outline" size={18} color={colors.terra} /><Text style={[styles.error, { color: colors.terra }]}>{error}</Text></View>}
