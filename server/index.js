@@ -37,6 +37,7 @@ const SCHEMA = `
     created_at TEXT NOT NULL,
     completed INTEGER NOT NULL DEFAULT 0,
     completed_dates TEXT NOT NULL DEFAULT '[]',
+    important INTEGER NOT NULL DEFAULT 0,
     last_reminder TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS tasks_user_date ON tasks(telegram_id, due_date);
@@ -77,6 +78,10 @@ const SCHEMA = `
   );
 `;
 
+async function migrate() {
+  await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS important INTEGER NOT NULL DEFAULT 0");
+}
+
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 app.use((req, res, next) => {
@@ -91,7 +96,7 @@ app.use((req, res, next) => {
 const wrap = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 const nowIso = () => new Date().toISOString();
 const levelForXp = (xp) => xp >= 500 ? 5 : xp >= 300 ? 4 : xp >= 150 ? 3 : xp >= 50 ? 2 : 1;
-const validRepeats = new Set(['none', 'daily', 'weekdays', 'weekly']);
+const validRepeats = new Set(['none', 'daily', 'weekdays', 'weekly', 'quarterly', 'yearly']);
 
 const DEFAULT_SPHERES = [
   { id: 'home', name: 'Дом', color: '#C06A45' },
@@ -184,6 +189,7 @@ async function getState(telegramId) {
       createdAt: row.created_at,
       completed: Boolean(row.completed),
       completedDates: parseJsonArray(row.completed_dates),
+      important: Boolean(row.important),
     })),
     habits: habitRows.map((row) => ({
       id: row.id, name: row.name, sphere: row.sphere, history: parseJsonArray(row.history), createdAt: row.created_at,
@@ -258,14 +264,14 @@ async function saveState(telegramId, input) {
       if (!title) continue;
       const id = cleanId(task.id);
       await client.query(
-        `INSERT INTO tasks (id, telegram_id, title, time, repeat_rule, sphere, due_date, created_at, completed, completed_dates, last_reminder)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        `INSERT INTO tasks (id, telegram_id, title, time, repeat_rule, sphere, due_date, created_at, completed, completed_dates, important, last_reminder)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           id, telegramId, title, cleanTime(task.time),
           validRepeats.has(task.repeat) ? task.repeat : 'none',
           pickSphere(task.sphere), cleanDate(task.date),
           cleanText(task.createdAt, 40) || timestamp, task.completed ? 1 : 0,
-          JSON.stringify(cleanDateList(task.completedDates)), reminders.get(id) || '',
+          JSON.stringify(cleanDateList(task.completedDates)), task.important ? 1 : 0, reminders.get(id) || '',
         ],
       );
     }
@@ -393,7 +399,13 @@ function occursOn(task, key) {
   const index = (date.getUTCDay() + 6) % 7;
   if (task.repeat_rule === 'weekdays') return index < 5;
   const created = new Date(`${task.due_date}T12:00:00Z`);
-  return index === (created.getUTCDay() + 6) % 7;
+  if (task.repeat_rule === 'weekly') return index === (created.getUTCDay() + 6) % 7;
+  if (task.repeat_rule === 'quarterly') {
+    if (date.getUTCDate() !== created.getUTCDate()) return false;
+    const months = (date.getUTCFullYear() - created.getUTCFullYear()) * 12 + (date.getUTCMonth() - created.getUTCMonth());
+    return months % 3 === 0;
+  }
+  return date.getUTCDate() === created.getUTCDate() && date.getUTCMonth() === created.getUTCMonth();
 }
 
 let reminderRunning = false;
@@ -459,6 +471,7 @@ app.use((error, _req, res, _next) => {
 
 async function start() {
   await pool.query(SCHEMA);
+  await migrate();
   app.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
     configureBot();
