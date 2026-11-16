@@ -45,12 +45,25 @@ export interface ShoppingItem {
   done: boolean;
 }
 
+export interface ShoppingTemplate {
+  id: string;
+  name: string;
+  items: string[];
+}
+
+export interface FocusSession {
+  date: string;
+  minutes: number;
+}
+
 export interface PlannerData {
   tasks: Task[];
   habits: Habit[];
   notes: Note[];
   spheres: SphereCustom[];
   shopping: ShoppingItem[];
+  templates: ShoppingTemplate[];
+  focus: FocusSession[];
   xp: number;
   botStarted: boolean;
   updatedAt: string;
@@ -72,6 +85,11 @@ export interface NoteDraft {
   title: string;
   text: string;
   sphere: SphereId;
+}
+
+export interface UndoState {
+  message: string;
+  restore: () => void;
 }
 
 export interface ConfirmState {
