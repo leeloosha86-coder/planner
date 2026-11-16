@@ -25,6 +25,8 @@ export const REPEAT_OPTIONS = [
   { id: 'daily', label: 'Каждый день' },
   { id: 'weekdays', label: 'По будням' },
   { id: 'weekly', label: 'Раз в неделю' },
+  { id: 'quarterly', label: 'Раз в квартал' },
+  { id: 'yearly', label: 'Раз в год' },
 ] as const;
 
 export const MAX_XP = 500;
