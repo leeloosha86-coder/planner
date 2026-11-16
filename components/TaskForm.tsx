@@ -21,7 +21,7 @@ interface Props {
   onDelete?: () => void;
 }
 
-const EMPTY: TaskDraft = { title: '', time: '', repeat: 'none', sphere: '', date: '' };
+const EMPTY: TaskDraft = { title: '', time: '', repeat: 'none', sphere: '', date: '', important: false };
 
 const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, initial, spheres, useTelegramButton, onClose, onSave, onDelete }, ref) {
   const { colors, serif } = useTheme();
@@ -109,6 +109,19 @@ const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, 
               <View style={styles.quickTimes}>
                 {['09:00', '12:00', '18:00'].map((time) => <ChoiceChip key={time} label={time} small selected={draft.time === time} color={colors.terra} onPress={() => setDraft((current) => ({ ...current, time }))} />)}
               </View>
+              <FieldLabel>Важность</FieldLabel>
+              <Pressable
+                onPress={() => setDraft((current) => ({ ...current, important: !current.important }))}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: draft.important }}
+                style={[styles.importantRow, { backgroundColor: draft.important ? colors.terraSoft : colors.input, borderColor: draft.important ? colors.terra : colors.border }]}
+              >
+                <View style={[styles.importantDot, { backgroundColor: draft.important ? colors.terra : colors.border }]} />
+                <Text style={[styles.importantText, { color: draft.important ? colors.terra : colors.text }]}>
+                  {draft.important ? 'Важная задача — будет вверху списка' : 'Сделать важной'}
+                </Text>
+                <Ionicons name={draft.important ? 'flag' : 'flag-outline'} size={18} color={draft.important ? colors.terra : colors.muted} />
+              </Pressable>
               <FieldLabel>Повтор</FieldLabel>
               <View style={styles.wrap}>
                 {REPEAT_OPTIONS.map((option) => <ChoiceChip key={option.id} label={option.label} small selected={draft.repeat === option.id} color={colors.forest} onPress={() => setDraft((current) => ({ ...current, repeat: option.id as RepeatRule }))} />)}
@@ -147,6 +160,9 @@ const styles = StyleSheet.create({
   quickTimes: { flexDirection: 'row', gap: 8, marginTop: 9 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   hint: { fontSize: 13, lineHeight: 18, marginTop: 9 },
+  importantRow: { flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, minHeight: 48 },
+  importantDot: { width: 9, height: 9, borderRadius: 5 },
+  importantText: { flex: 1, fontSize: 14.5, fontWeight: '600' },
   saveButton: { marginTop: 22 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, padding: 11, marginTop: 16 },
   error: { flex: 1, fontSize: 13.5, lineHeight: 19 },
