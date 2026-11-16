@@ -152,7 +152,7 @@ export default function PlannerApp() {
 
   const openNewTask = useCallback((date = dateKey(new Date()), time = '') => {
     setTaskDraft({
-      title: '', time, repeat: 'none', sphere: filter === 'all' ? (data.spheres[0]?.id || '') : filter, date,
+      title: '', time, repeat: 'none', sphere: filter === 'all' ? (data.spheres[0]?.id || '') : filter, date, important: false,
     });
   }, [data.spheres, filter]);
 
@@ -213,7 +213,7 @@ export default function PlannerApp() {
   }, [commit, haptic, today]);
 
   const editTask = useCallback((task: Task) => {
-    setTaskDraft({ id: task.id, title: task.title, time: task.time, repeat: task.repeat, sphere: task.sphere, date: task.date });
+    setTaskDraft({ id: task.id, title: task.title, time: task.time, repeat: task.repeat, sphere: task.sphere, date: task.date, important: Boolean(task.important) });
   }, []);
 
   const saveTask = (draft: TaskDraft) => {
@@ -224,7 +224,7 @@ export default function PlannerApp() {
       }
       const task: Task = {
         id: makeId('task'), title: draft.title, time: draft.time, repeat: draft.repeat,
-        sphere: draft.sphere, date: draft.date, createdAt: new Date().toISOString(), completed: false, completedDates: [],
+        sphere: draft.sphere, date: draft.date, createdAt: new Date().toISOString(), completed: false, completedDates: [], important: Boolean(draft.important),
       };
       return { ...current, tasks: [...current.tasks, task] };
     });
@@ -311,28 +311,56 @@ export default function PlannerApp() {
     return tasks + habits + notes;
   }, [data.habits, data.notes, data.tasks]);
 
+  const deleteSphereWithContents = (sphere: SphereCustom) => {
+    haptic('medium');
+    commit((current) => ({
+      ...current,
+      spheres: current.spheres.filter((item) => item.id !== sphere.id),
+      tasks: current.tasks.filter((task) => task.sphere !== sphere.id),
+      habits: current.habits.filter((habit) => habit.sphere !== sphere.id),
+      notes: current.notes.filter((note) => note.sphere !== sphere.id),
+    }));
+  };
+
   const requestDeleteSphere = (sphere: SphereCustom) => {
     if (data.spheres.length <= 1) {
       setSyncError('Должна остаться хотя бы одна сфера');
       return;
     }
     const used = countSphereUsage(sphere.id);
-    const target = data.spheres.find((item) => item.id !== sphere.id) || data.spheres[0];
+    if (used === 0) {
+      setConfirm({
+        title: `Удалить сферу «${sphere.name}»?`,
+        message: 'В этой сфере нет записей, её можно удалить без потерь.',
+        confirmLabel: 'Удалить',
+        onConfirm: () => deleteSphereWithContents(sphere),
+      });
+      return;
+    }
     setConfirm({
-      title: `Удалить сферу «${sphere.name}»?`,
-      message: used > 0
-        ? `К этой сфере привязано записей: ${used}. Они не пропадут и перейдут в сферу «${target.name}».`
-        : 'Сфера пустая, её можно удалить без потерь.',
-      confirmLabel: 'Удалить',
+      title: `В сфере «${sphere.name}» есть записи`,
+      message: `Задач, заметок и привычек в этой сфере: ${used}. Их можно удалить вместе со сферой или сначала перенести в другую.`,
+      confirmLabel: 'Продолжить',
       onConfirm: () => {
-        changeSpheres(data.spheres.filter((item) => item.id !== sphere.id));
+        setTimeout(() => {
+          setConfirm({
+            title: `Удалить сферу и ${used} ${used === 1 ? 'запись' : used < 5 ? 'записи' : 'записей'}?`,
+            message: 'Восстановить их будет нельзя. Если хотите сохранить — нажмите «Отмена».',
+            confirmLabel: 'Удалить всё',
+            onConfirm: () => deleteSphereWithContents(sphere),
+          });
+        }, 80);
       },
     });
   };
 
   const addShoppingItem = (title: string) => {
+    const normalized = title.trim().toLocaleLowerCase('ru-RU');
+    const exists = data.shopping.some((item) => item.title.trim().toLocaleLowerCase('ru-RU') === normalized);
+    if (exists) return { duplicate: true } as const;
     haptic('light');
-    commit((current) => ({ ...current, shopping: [...current.shopping, { id: makeId('item'), title, done: false }] }));
+    commit((current) => ({ ...current, shopping: [...current.shopping, { id: makeId('item'), title: title.trim(), done: false }] }));
+    return { duplicate: false } as const;
   };
 
   const toggleShoppingItem = (item: ShoppingItem) => {
