@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatLongDate, greeting, isTaskDone, tasksForDate } from '../lib/date';
 import { filtersFor } from '../lib/spheres';
@@ -10,7 +10,7 @@ import TaskCard from '../components/TaskCard';
 import { ChoiceChip, EmptyState } from '../components/UI';
 import { LeafMark } from '../components/Decor';
 
-export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres }: {
+export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres, onFocus, onStats, onRitual }: {
   tasks: Task[];
   spheres: SphereCustom[];
   xp: number;
@@ -27,11 +27,17 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
   onOpenBot: () => void;
   onRetry: () => void;
   onManageSpheres: () => void;
+  onFocus: () => void;
+  onStats: () => void;
+  onRitual: () => void;
 }) {
   const { colors, serif } = useTheme();
+  const [query, setQuery] = useState('');
   const now = new Date();
   const allToday = tasksForDate(tasks, today);
-  const visible = filter === 'all' ? allToday : allToday.filter((task) => task.sphere === filter);
+  const bySphere = filter === 'all' ? allToday : allToday.filter((task) => task.sphere === filter);
+  const needle = query.trim().toLocaleLowerCase('ru-RU');
+  const visible = needle ? bySphere.filter((task) => task.title.toLocaleLowerCase('ru-RU').includes(needle)) : bySphere;
   const done = visible.filter((task) => isTaskDone(task, today)).length;
   const filters = useMemo(() => filtersFor(spheres, colors.forest), [colors.forest, spheres]);
 
@@ -52,6 +58,17 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
         </View>}
       </View>
       <ExperienceCard xp={xp} celebrationSignal={celebrationSignal} />
+      <View style={styles.actions}>
+        <Pressable onPress={onFocus} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть фокус-таймер">
+          <Ionicons name="timer-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Фокус</Text>
+        </Pressable>
+        <Pressable onPress={onStats} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть итоги недели">
+          <Ionicons name="bar-chart-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Итоги</Text>
+        </Pressable>
+        <Pressable onPress={onRitual} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть итоги дня">
+          <Ionicons name="moon-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Вечер</Text>
+        </Pressable>
+      </View>
       {!botStarted && <View style={[styles.reminder, { backgroundColor: colors.goldSoft, borderColor: colors.gold }]}>
         <View style={[styles.reminderIcon, { backgroundColor: colors.card }]}><Ionicons name="notifications-outline" size={21} color={colors.gold} /></View>
         <Text style={[styles.reminderText, { color: colors.text }]}>Нажмите /start у бота, чтобы получать напоминания</Text>
@@ -68,6 +85,19 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
           <Text style={[styles.sectionCaption, { color: colors.muted }]}>сферы жизни</Text>
           <Ionicons name="options-outline" size={14} color={colors.terra} />
         </Pressable>
+      </View>
+      <View style={[styles.search, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Ionicons name="search-outline" size={19} color={colors.sage} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Найти задачу на сегодня"
+          placeholderTextColor={colors.muted}
+          returnKeyType="search"
+          autoCapitalize="none"
+          style={[styles.searchInput, { color: colors.text }]}
+        />
+        {!!query && <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Очистить поиск"><Ionicons name="close-circle" size={18} color={colors.muted} /></Pressable>}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
         {filters.map((item) => <ChoiceChip key={item.id} label={item.name} selected={filter === item.id} color={item.color} onPress={() => onFilter(item.id)} small />)}
@@ -86,7 +116,7 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
       keyExtractor={(item) => item.id}
       renderItem={({ item, index }) => <TaskCard task={item} spheres={spheres} index={index} done={isTaskDone(item, today)} onToggle={() => onToggle(item)} onPress={() => onEdit(item, today)} />}
       ListHeaderComponent={header}
-      ListEmptyComponent={<EmptyState title="На сегодня задач нет" subtitle="Нажмите «+», чтобы добавить задачу" icon="leaf-outline" />}
+      ListEmptyComponent={<EmptyState title={needle ? 'Ничего не найдено' : 'На сегодня задач нет'} subtitle={needle ? 'Попробуйте другой запрос' : 'Нажмите «+», чтобы добавить задачу'} icon={needle ? 'search-outline' : 'leaf-outline'} />}
       contentContainerStyle={[styles.content, visible.length === 0 && { flexGrow: 1 }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
@@ -120,6 +150,11 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 23, lineHeight: 28 },
   captionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sectionCaption: { fontSize: 12 },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 15, paddingVertical: 10 },
+  actionText: { fontSize: 13, fontWeight: '600' },
+  search: { minHeight: 46, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, gap: 8, marginBottom: 12 },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 10 },
   filters: { gap: 8, paddingRight: 20, paddingBottom: 17 },
   manageChip: { minHeight: 35, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', paddingHorizontal: 11, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   manageChipText: { fontSize: 13, fontWeight: '600' },
