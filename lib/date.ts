@@ -71,9 +71,25 @@ export function taskOccursOn(task: Task, key: string): boolean {
   if (task.repeat === 'none') return task.date === key;
   if (key < task.date) return false;
   if (task.repeat === 'daily') return true;
-  const index = dayIndex(fromDateKey(key));
-  if (task.repeat === 'weekdays') return index < 5;
-  return index === dayIndex(fromDateKey(task.date));
+  const date = fromDateKey(key);
+  const start = fromDateKey(task.date);
+  if (task.repeat === 'weekdays') return dayIndex(date) < 5;
+  if (task.repeat === 'weekly') return dayIndex(date) === dayIndex(start);
+  if (task.repeat === 'quarterly') {
+    if (date.getDate() !== start.getDate()) return false;
+    return (date.getMonth() - start.getMonth()) % 3 === 0 && date.getMonth() >= start.getMonth() % 3;
+  }
+  if (task.repeat === 'yearly') return date.getDate() === start.getDate() && date.getMonth() === start.getMonth();
+  return task.date === key;
+}
+
+export function repeatLabel(rule: RepeatRule): string {
+  if (rule === 'daily') return 'ежедневно';
+  if (rule === 'weekdays') return 'по будням';
+  if (rule === 'weekly') return 'еженедельно';
+  if (rule === 'quarterly') return 'раз в квартал';
+  if (rule === 'yearly') return 'раз в год';
+  return '';
 }
 
 export function isTaskDone(task: Task, key: string): boolean {
@@ -84,8 +100,9 @@ export function tasksForDate(tasks: Task[], key: string): Task[] {
   return tasks
     .filter((task) => taskOccursOn(task, key))
     .sort((a, b) => {
-      const doneA = isTaskDone(a, key) ? 1 : 0;
-      const doneB = isTaskDone(b, key) ? 1 : 0;
+      const rank = (task: Task) => (isTaskDone(task, key) ? 2 : task.important ? 0 : 1);
+      const doneA = rank(a);
+      const doneB = rank(b);
       if (doneA !== doneB) return doneA - doneB;
       if (!a.time && !b.time) return a.createdAt.localeCompare(b.createdAt);
       if (!a.time) return 1;
@@ -141,6 +158,8 @@ export function repeatDescription(rule: RepeatRule, key: string): string {
   if (rule === 'daily') return 'Задача будет появляться каждый день';
   if (rule === 'weekdays') return 'Задача будет появляться с понедельника по пятницу';
   if (rule === 'weekly') return `Задача будет появляться каждую неделю: ${DAYS_FULL[dayIndex(fromDateKey(key))]}`;
+  if (rule === 'quarterly') return `Задача будет появляться раз в три месяца, ${fromDateKey(key).getDate()} числа`;
+  if (rule === 'yearly') return `Задача будет появляться раз в год, ${fromDateKey(key).getDate()} ${MONTHS_GENITIVE[fromDateKey(key).getMonth()]}`;
   return 'Один раз, без повторения';
 }
 
