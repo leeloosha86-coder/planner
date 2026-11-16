@@ -37,20 +37,26 @@ export default function ShoppingScreen({ items, refreshing, onRefresh, onAdd, on
   items: ShoppingItem[];
   refreshing: boolean;
   onRefresh: () => void;
-  onAdd: (title: string) => void;
+  onAdd: (title: string) => { duplicate: boolean };
   onToggle: (item: ShoppingItem) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
 }) {
   const { colors, serif } = useTheme();
   const [draft, setDraft] = useState('');
+  const [notice, setNotice] = useState('');
   const sorted = useMemo(() => [...items.filter((item) => !item.done), ...items.filter((item) => item.done)], [items]);
   const doneCount = items.filter((item) => item.done).length;
   const canAdd = draft.trim().length > 0;
 
   const submit = () => {
     if (!canAdd) return;
-    onAdd(draft.trim());
+    const result = onAdd(draft.trim());
+    if (result.duplicate) {
+      setNotice(`«${draft.trim()}» уже в списке`);
+      return;
+    }
+    setNotice('');
     setDraft('');
   };
 
@@ -71,7 +77,7 @@ export default function ShoppingScreen({ items, refreshing, onRefresh, onAdd, on
       <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TextInput
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={(value) => { setDraft(value); setNotice(''); }}
           onSubmitEditing={submit}
           placeholder="Что купить?"
           placeholderTextColor={colors.muted}
@@ -89,6 +95,12 @@ export default function ShoppingScreen({ items, refreshing, onRefresh, onAdd, on
           <Ionicons name="add" size={22} color={canAdd ? colors.cream : colors.muted} />
         </Pressable>
       </View>
+      {!!notice && (
+        <View style={[styles.notice, { backgroundColor: colors.terraSoft }]}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.terra} />
+          <Text style={[styles.noticeText, { color: colors.terra }]}>{notice}</Text>
+        </View>
+      )}
     </View>
   );
 
@@ -118,6 +130,8 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 18, paddingLeft: 15, paddingRight: 7, paddingVertical: 7, gap: 8 },
   input: { flex: 1, fontSize: 16, paddingVertical: 8 },
   addButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 9, marginTop: 9 },
+  noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontWeight: '600' },
   rowFade: { marginTop: 10 },
   row: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 13, minHeight: 58 },
   check: { width: 27, height: 27, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
