@@ -20,11 +20,11 @@ function initialTasks(): Task[] {
   const today = dateKey(now);
   const createdAt = now.toISOString();
   return [
-    { id: makeId('task'), title: 'Разобрать рабочую почту', time: '09:30', repeat: 'none', sphere: 'work', date: today, createdAt, completed: true, completedDates: [] },
-    { id: makeId('task'), title: 'Полить фиалки и проверить ростки', time: '', repeat: 'none', sphere: 'home', date: today, createdAt, completed: false, completedDates: [] },
-    { id: makeId('task'), title: 'Сфотографировать новое изделие', time: '16:00', repeat: 'none', sphere: 'hobby', date: today, createdAt, completed: false, completedDates: [] },
-    { id: makeId('task'), title: 'Прочитать двадцать страниц', time: '20:30', repeat: 'daily', sphere: 'health', date: today, createdAt, completed: false, completedDates: [] },
-    { id: makeId('task'), title: 'Спокойная прогулка перед сном', time: '19:00', repeat: 'none', sphere: 'home', date: today, createdAt, completed: false, completedDates: [] },
+    { id: makeId('task'), title: 'Разобрать рабочую почту', time: '09:30', repeat: 'none', sphere: 'work', date: today, createdAt, completed: true, completedDates: [], important: false },
+    { id: makeId('task'), title: 'Полить фиалки и проверить ростки', time: '', repeat: 'none', sphere: 'home', date: today, createdAt, completed: false, completedDates: [], important: false },
+    { id: makeId('task'), title: 'Сфотографировать новое изделие', time: '16:00', repeat: 'none', sphere: 'hobby', date: today, createdAt, completed: false, completedDates: [], important: false },
+    { id: makeId('task'), title: 'Прочитать двадцать страниц', time: '20:30', repeat: 'daily', sphere: 'health', date: today, createdAt, completed: false, completedDates: [], important: false },
+    { id: makeId('task'), title: 'Спокойная прогулка перед сном', time: '19:00', repeat: 'none', sphere: 'home', date: today, createdAt, completed: false, completedDates: [], important: false },
   ];
 }
 
@@ -93,7 +93,7 @@ export function normalize(value: Partial<PlannerData>): PlannerData {
   const habits = Array.isArray(value.habits) ? value.habits : fallback.habits;
   const notes = Array.isArray(value.notes) ? value.notes : fallback.notes;
   return {
-    tasks: tasks.map((task) => ({ ...task, sphere: adopt(task.sphere) })),
+    tasks: tasks.map((task) => ({ ...task, sphere: adopt(task.sphere), important: Boolean(task.important) })),
     habits: habits.map((habit) => ({ ...habit, sphere: adopt(habit.sphere) })),
     notes: notes.map((note) => ({ ...note, sphere: adopt(note.sphere) })),
     spheres,
