@@ -380,7 +380,18 @@ export default function PlannerApp() {
 
   const removeShoppingItem = (id: string) => {
     haptic('light');
+    const removed = data.shopping.find((entry) => entry.id === id);
+    const index = data.shopping.findIndex((entry) => entry.id === id);
     commit((current) => ({ ...current, shopping: current.shopping.filter((entry) => entry.id !== id) }));
+    if (!removed) return;
+    setUndo({
+      message: `«${removed.title}» убран из списка`,
+      restore: () => commit((current) => {
+        const next = [...current.shopping];
+        next.splice(Math.max(0, Math.min(index, next.length)), 0, removed);
+        return { ...current, shopping: next };
+      }),
+    });
   };
 
   const requestNewShoppingList = () => {
