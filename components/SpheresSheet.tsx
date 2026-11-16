@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { COLORS } from '../lib/constants';
-import { colorForIndex, MAX_SPHERE_NAME, MAX_SPHERES, makeSphereId, cleanSphereName } from '../lib/spheres';
+import { colorForIndex, MAX_SPHERE_NAME, MAX_SPHERES, SPHERE_COLORS, makeSphereId, cleanSphereName } from '../lib/spheres';
 import type { SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { FieldLabel, PrimaryButton } from './UI';
@@ -66,7 +66,13 @@ const SpheresSheet = forwardRef<SpheresSheetHandle, {
   };
 
   const save = () => {
-    const cleaned = draft.map((sphere) => ({ ...sphere, name: cleanSphereName(sphere.name) })).filter((sphere) => sphere.name);
+    let working = draft.map((sphere) => ({ ...sphere, name: cleanSphereName(sphere.name) })).filter((sphere) => sphere.name);
+    const pending = cleanSphereName(newName);
+    if (pending && working.length < MAX_SPHERES) {
+      const duplicate = working.some((sphere) => sphere.name.toLocaleLowerCase('ru-RU') === pending.toLocaleLowerCase('ru-RU'));
+      if (!duplicate) working = [...working, { id: makeSphereId(), name: pending, color: colorForIndex(working.length) }];
+    }
+    const cleaned = working;
     if (cleaned.length === 0) {
       setError('Оставьте хотя бы одну сферу с названием');
       return;
@@ -108,6 +114,19 @@ const SpheresSheet = forwardRef<SpheresSheetHandle, {
                     style={[styles.input, { color: colors.text, backgroundColor: colors.input, borderColor: colors.border }]}
                     accessibilityLabel={`Название сферы ${index + 1}`}
                   />
+                  <View style={styles.palette}>
+                    {SPHERE_COLORS.map((color) => (
+                      <Pressable
+                        key={color}
+                        onPress={() => setDraft((current) => current.map((item) => item.id === sphere.id ? { ...item, color } : item))}
+                        accessibilityLabel={`Цвет ${color}`}
+                        accessibilityState={{ selected: sphere.color === color }}
+                        style={[styles.swatch, { backgroundColor: color }, sphere.color === color && { borderColor: colors.text, borderWidth: 2 }]}
+                      >
+                        {sphere.color === color && <Ionicons name="checkmark" size={12} color={colors.cream} />}
+                      </Pressable>
+                    ))}
+                  </View>
                   <View style={styles.rowMeta}>
                     <Text style={[styles.counter, { color: colors.muted }]}>{`${sphere.name.length}/${MAX_SPHERE_NAME}`}</Text>
                     {used > 0 && <Text style={[styles.used, { color: colors.sage }]}>{`записей: ${used}`}</Text>}
@@ -166,6 +185,8 @@ const styles = StyleSheet.create({
   counter: { fontSize: 11 },
   used: { fontSize: 11, flex: 1 },
   deleteHit: { padding: 3 },
+  palette: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingHorizontal: 2, paddingTop: 2 },
+  swatch: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 0 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   addInput: { flex: 1 },
   addButton: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
