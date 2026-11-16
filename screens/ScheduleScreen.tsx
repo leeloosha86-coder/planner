@@ -74,14 +74,20 @@ export default function ScheduleScreen({ tasks, spheres, refreshing, onRefresh, 
       </View>
       {selected !== today && <Pressable onPress={() => setSelected(today)} style={styles.todayButton}><Ionicons name="locate-outline" size={15} color={colors.terra} /><Text style={[styles.todayButtonText, { color: colors.terra }]}>Вернуться к сегодня</Text></Pressable>}
       <View style={styles.sectionHeading}>
+        <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: serif }]}>По часам</Text>
+        <View style={styles.hourHint}><Ionicons name="add" size={15} color={colors.terra} /><Text style={[styles.hourHintText, { color: colors.muted }]}>нажмите на час</Text></View>
+      </View>
+    </View>
+  );
+
+
+  const footer = (
+    <View>
+      <View style={styles.sectionHeading}>
         <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: serif }]}>Без времени</Text>
         <Text style={[styles.sectionCount, { color: colors.muted }]}>{withoutTime.length}</Text>
       </View>
       {withoutTime.length > 0 ? <View style={styles.noTimeList}>{withoutTime.map((task) => <TimelineTask key={task.id} task={task} spheres={spheres} done={isTaskDone(task, selected)} onPress={() => onEdit(task, selected)} onToggle={() => onToggle(task, selected)} />)}</View> : <View style={[styles.noTimeEmpty, { borderColor: colors.border }]}><Ionicons name="checkmark-done-outline" size={18} color={colors.sage} /><Text style={[styles.noTimeEmptyText, { color: colors.muted }]}>Здесь появятся задачи без точного времени</Text></View>}
-      <View style={styles.sectionHeading}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: serif }]}>По часам</Text>
-        <View style={styles.hourHint}><Ionicons name="add" size={15} color={colors.terra} /><Text style={[styles.hourHintText, { color: colors.muted }]}>нажмите на час</Text></View>
-      </View>
     </View>
   );
 
@@ -91,6 +97,7 @@ export default function ScheduleScreen({ tasks, spheres, refreshing, onRefresh, 
       data={HOURS}
       keyExtractor={(hour) => String(hour)}
       ListHeaderComponent={header}
+      ListFooterComponent={footer}
       renderItem={({ item: hour, index }) => {
         const hourTasks = timed.filter((task) => Number(task.time.split(':')[0]) === hour);
         const isCurrent = selected === today && now.getHours() === hour;
