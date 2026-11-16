@@ -14,8 +14,22 @@ export const DEFAULT_SPHERES: SphereCustom[] = [
   { id: 'hobby', name: 'Хобби', color: COLORS.craft },
 ];
 
-// Цвета для новых сфер: берём по кругу, чтобы они не повторялись подряд.
-export const SPHERE_COLORS = [COLORS.forest, COLORS.terra, COLORS.craft, COLORS.study, COLORS.sage, COLORS.gold];
+// Цветов ровно столько же, сколько можно создать сфер,
+// поэтому каждый цвет достаётся одной сфере и повторов не бывает.
+export const SPHERE_COLORS = [
+  COLORS.forest,  // зелёный
+  COLORS.terra,   // терракота
+  COLORS.study,   // синий
+  COLORS.craft,   // лиловый
+  COLORS.gold,    // золотой
+  COLORS.sage,    // шалфей
+  '#8A6A4F',      // коричневый
+  '#4F8A82',      // бирюзовый
+  '#B5677E',      // ягодный
+  '#7D6B9E',      // фиолетовый
+  '#5568A0',      // индиго
+  '#9C8C7A',      // тёплый серый
+];
 
 // Старые идентификаторы из первых версий приложения.
 const LEGACY_ALIASES: Record<string, string> = { craft: 'hobby', study: 'health' };
@@ -36,6 +50,13 @@ export function makeSphereId(): string {
   return `sph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// Первый цвет, который ещё не занят другими сферами. Если все заняты — берём по кругу.
+export function freeColor(spheres: { color: string }[], fallbackIndex: number): string {
+  const used = new Set(spheres.map((sphere) => sphere.color.toLowerCase()));
+  const free = SPHERE_COLORS.find((color) => !used.has(color.toLowerCase()));
+  return free || SPHERE_COLORS[fallbackIndex % SPHERE_COLORS.length];
+}
+
 export function colorForIndex(index: number): string {
   return SPHERE_COLORS[index % SPHERE_COLORS.length];
 }
@@ -53,7 +74,7 @@ export function normalizeSpheres(value: unknown): SphereCustom[] {
     const name = cleanSphereName(item.name);
     if (!id || !name || seen.has(id)) continue;
     seen.add(id);
-    result.push({ id, name, color: isHexColor(item.color) ? item.color : colorForIndex(result.length) });
+    result.push({ id, name, color: isHexColor(item.color) ? item.color : SPHERE_COLORS[result.length % SPHERE_COLORS.length] });
     if (result.length >= MAX_SPHERES) break;
   }
   if (result.length === 0) return DEFAULT_SPHERES.map((sphere) => ({ ...sphere }));
