@@ -23,7 +23,7 @@ const SCHEMA = `
     level INTEGER NOT NULL DEFAULT 1,
     bot_started INTEGER NOT NULL DEFAULT 0,
     bot_blocked INTEGER NOT NULL DEFAULT 0,
-    timezone TEXT NOT NULL DEFAULT 'Europe/Moscow',
+    timezone TEXT NOT NULL DEFAULT 'UTC',
     updated_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS tasks (
@@ -82,6 +82,8 @@ async function migrate() {
   await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS important INTEGER NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS templates TEXT NOT NULL DEFAULT '[]'");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS focus TEXT NOT NULL DEFAULT '[]'");
+  // Пояс по умолчанию для новых пользователей: UTC вместо Москвы.
+  await pool.query("ALTER TABLE users ALTER COLUMN timezone SET DEFAULT 'UTC'");
 }
 
 const app = express();
@@ -97,6 +99,18 @@ app.use((req, res, next) => {
 
 const wrap = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 const nowIso = () => new Date().toISOString();
+
+// Сервер не знает, где живёт человек: принимаем только настоящий пояс IANA, иначе UTC.
+function cleanTimezone(value) {
+  const zone = typeof value === 'string' ? value.trim().slice(0, 80) : '';
+  if (!zone) return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: zone });
+    return zone;
+  } catch {
+    return 'UTC';
+  }
+}
 const levelForXp = (xp) => xp >= 500 ? 5 : xp >= 300 ? 4 : xp >= 150 ? 3 : xp >= 50 ? 2 : 1;
 const validRepeats = new Set(['none', 'daily', 'weekdays', 'weekly', 'quarterly', 'yearly']);
 
@@ -204,7 +218,7 @@ async function getState(telegramId) {
     xp: Math.max(0, Math.min(500, user.xp)),
     botStarted: Boolean(user.bot_started && !user.bot_blocked),
     updatedAt: user.updated_at,
-    timezone: user.timezone || 'Europe/Moscow',
+    timezone: user.timezone || 'UTC',
   };
 }
 
@@ -259,7 +273,7 @@ function cleanFocus(value) {
 async function saveState(telegramId, input) {
   const timestamp = nowIso();
   const xp = Math.max(0, Math.min(500, Math.floor(Number(input.xp) || 0)));
-  const timezone = cleanText(input.timezone, 80) || 'Europe/Moscow';
+  const timezone = cleanTimezone(input.timezone);
   const spheres = normalizeSphereList(input.spheres);
   const knownIds = new Set(spheres.map((sphere) => sphere.id));
   const fallbackId = spheres[0].id;
@@ -344,6 +358,12 @@ async function saveState(telegramId, input) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: nowIso() }));
 app.get('/', (_req, res) => res.type('text/plain').send('Мой планировщик: сервер работает'));
+app.post('/api/timezone', authenticate, wrap(async (req, res) => {
+  const timezone = cleanTimezone(req.body?.timezone);
+  await pool.query('UPDATE users SET timezone = $1 WHERE telegram_id = $2', [timezone, req.telegramId]);
+  res.json({ timezone });
+}));
+
 app.get('/api/state', authenticate, wrap(async (req, res) => {
   res.json({ data: await getState(req.telegramId) });
 }));
@@ -398,13 +418,13 @@ app.post(`/api/telegram/webhook/${WEBHOOK_SECRET}`, wrap(async (req, res) => {
 function localParts(date, timezone) {
   try {
     const parts = new Intl.DateTimeFormat('en-GB', {
-      timeZone: timezone || 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: timezone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).formatToParts(date);
     const get = (type) => parts.find((part) => part.type === type)?.value || '';
     return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
   } catch {
-    return localParts(date, 'Europe/Moscow');
+    return localParts(date, 'UTC');
   }
 }
 
