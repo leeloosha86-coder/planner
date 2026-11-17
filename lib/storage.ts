@@ -7,11 +7,13 @@ import type { FocusSession, Habit, Note, PlannerData, ShoppingItem, ShoppingTemp
 const STORAGE_KEY = 'moy-planirovshchik-data-v1';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
 
-function timezone(): string {
+// Пояс берём с устройства: сервер не знает, где живёт человек.
+export function deviceTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof zone === 'string' && zone ? zone : 'UTC';
   } catch {
-    return 'Europe/Moscow';
+    return 'UTC';
   }
 }
 
@@ -75,7 +77,7 @@ export function createInitialData(): PlannerData {
     xp: 30,
     botStarted: false,
     updatedAt: new Date().toISOString(),
-    timezone: timezone(),
+    timezone: deviceTimezone(),
   };
 }
 
@@ -125,7 +127,7 @@ export function normalize(value: Partial<PlannerData>): PlannerData {
     xp: Math.max(0, Math.min(500, Number(value.xp) || 0)),
     botStarted: Boolean(value.botStarted),
     updatedAt: value.updatedAt || fallback.updatedAt,
-    timezone: value.timezone || timezone(),
+    timezone: deviceTimezone(),
   };
 }
 
@@ -157,9 +159,14 @@ export async function loadData(): Promise<{ data: PlannerData; remote: boolean; 
     const response = await request('/api/state');
     if (!response.ok) throw new Error('request failed');
     const payload = await response.json();
+    const remoteZone = payload?.data?.timezone;
     const remote = normalize(payload.data);
     const chosen = !hasLocalCopy || new Date(remote.updatedAt).getTime() >= new Date(local.updatedAt).getTime() ? remote : local;
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(chosen));
+    // Сервер мог хранить чужой пояс (например, Москву по умолчанию) — исправляем.
+    if (remoteZone !== chosen.timezone) {
+      syncTimezone(chosen.timezone).catch(() => undefined);
+    }
     return { data: chosen, remote: true };
   } catch {
     return { data: local, remote: false, error: 'Сервер пока недоступен. Изменения сохранятся на этом устройстве.' };
@@ -173,6 +180,14 @@ export async function persistLocal(data: PlannerData): Promise<void> {
 export async function persistRemote(data: PlannerData): Promise<void> {
   if (!API_URL || !getTelegram()?.initData) return;
   const response = await request('/api/state', { method: 'PUT', body: JSON.stringify({ data }) });
+  if (!response.ok) throw new Error('request failed');
+}
+
+// Сообщаем серверу пояс устройства. Нужно для напоминаний:
+// сервер сравнивает время задачи с местным временем пользователя.
+export async function syncTimezone(zone: string): Promise<void> {
+  if (!API_URL || !getTelegram()?.initData) return;
+  const response = await request('/api/timezone', { method: 'POST', body: JSON.stringify({ timezone: zone }) });
   if (!response.ok) throw new Error('request failed');
 }
 
