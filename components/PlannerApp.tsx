@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FOCUS_XP, LEVELS, MAX_XP, TASK_XP } from '../lib/constants';
 import { addDays, dateKey, isTaskDone, makeId, tasksForDate } from '../lib/date';
+import { dueReminders } from '../lib/reminders';
 import { botUsername, createInitialData, loadData, persistLocal, persistRemote } from '../lib/storage';
 import { buildTheme, ThemeProvider } from '../lib/theme';
 import { useTelegram } from '../lib/telegram';
@@ -18,6 +19,7 @@ import NoteEditor, { NoteEditorHandle } from './NoteEditor';
 import HabitForm, { HabitFormHandle } from './HabitForm';
 import SpheresSheet, { SpheresSheetHandle } from './SpheresSheet';
 import TipPopup from './TipPopup';
+import ReminderPopup from './ReminderPopup';
 import UndoBar from './UndoBar';
 import FocusSheet from './FocusSheet';
 import RitualSheet from './RitualSheet';
@@ -55,6 +57,23 @@ export default function PlannerApp() {
   const [focusVisible, setFocusVisible] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const [ritualVisible, setRitualVisible] = useState(false);
+  const [reminders, setReminders] = useState<Task[]>([]);
+  const shownReminders = useRef(new Set<string>());
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+  useEffect(() => {
+    if (!hydrated) return;
+    const timer = setInterval(() => {
+      const due = dueReminders(dataRef.current.tasks, new Date(), shownReminders.current);
+      if (due.length === 0) return;
+      setReminders(due);
+      notify('warning');
+      setTimeout(() => notify('warning'), 450);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [hydrated, notify]);
   const tipShown = useRef(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [levelUpEvent, setLevelUpEvent] = useState<{ id: number; level: number } | null>(null);
@@ -455,6 +474,11 @@ export default function PlannerApp() {
     commit((current) => ({ ...current, tasks: current.tasks.map((entry) => entry.id === task.id ? { ...entry, date: tomorrow } : entry) }));
   };
 
+  const completeReminder = (task: Task) => {
+    toggleTask(task, dateKey(new Date()));
+    setReminders((current) => current.filter((item) => item.id !== task.id));
+  };
+
   const openBot = () => {
     const url = botUsername ? `https://t.me/${botUsername}?start=planner` : 'https://t.me/';
     if (webApp) webApp.openTelegramLink(url);
@@ -527,6 +551,7 @@ export default function PlannerApp() {
         <UndoBar state={undo} onClose={() => setUndo(null)} />
         {tip && <TipPopup text={tip} onClose={() => setTip(null)} />}
         <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
+        <ReminderPopup tasks={reminders} spheres={data.spheres} onDone={completeReminder} onClose={() => setReminders([])} />
       </View>
     </ThemeProvider>
   );
