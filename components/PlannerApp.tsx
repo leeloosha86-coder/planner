@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,7 @@ import RitualSheet from './RitualSheet';
 import StatsScreen from '../screens/StatsScreen';
 import { ConfirmDialog, FadeIn } from './UI';
 import ElfPortrait from './ElfPortrait';
+import ElfSplash from './ElfSplash';
 import SparkBurst from './SparkBurst';
 import { GoldSpark } from './Decor';
 import TodayScreen from '../screens/TodayScreen';
@@ -44,6 +45,9 @@ export default function PlannerApp() {
   const { colors, serif } = theme;
   const [data, setData] = useState<PlannerData>(() => createInitialData());
   const [hydrated, setHydrated] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  const appVisible = hydrated && splashDone;
+  const finishSplash = useCallback(() => setSplashDone(true), []);
   const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('today');
@@ -165,7 +169,7 @@ export default function PlannerApp() {
   }, [colors.bg, webApp]);
 
   useEffect(() => {
-    if (!hydrated || tipShown.current) return;
+    if (!appVisible || tipShown.current) return;
     tipShown.current = true;
     const today = dateKey(new Date());
     AsyncStorage.getItem(TIP_SHOWN_KEY).then((shownOn) => {
@@ -175,7 +179,7 @@ export default function PlannerApp() {
       setTip(text);
       return AsyncStorage.setItem(TIP_SHOWN_KEY, today);
     }).catch(() => undefined);
-  }, [hydrated]);
+  }, [appVisible]);
 
   const openNewTask = useCallback((date = dateKey(new Date()), time = '') => {
     setTaskDraft({
@@ -194,7 +198,7 @@ export default function PlannerApp() {
   useEffect(() => {
     if (!webApp) return;
     const formOpen = Boolean(taskDraft || noteDraft || habitFormVisible || spheresVisible);
-    const visible = formOpen || activeTab === 'today';
+    const visible = appVisible && (formOpen || activeTab === 'today');
     const handler = () => {
       if (taskDraft) taskFormRef.current?.save();
       else if (noteDraft) noteEditorRef.current?.save();
@@ -212,7 +216,7 @@ export default function PlannerApp() {
     if (visible) webApp.MainButton.show(); else webApp.MainButton.hide();
     webApp.MainButton.onClick(handler);
     return () => webApp.MainButton.offClick(handler);
-  }, [activeTab, habitFormVisible, noteDraft, openNewTask, spheresVisible, taskDraft, webApp]);
+  }, [activeTab, appVisible, habitFormVisible, noteDraft, openNewTask, spheresVisible, taskDraft, webApp]);
 
   useEffect(() => {
     if (!webApp) return;
@@ -493,15 +497,10 @@ export default function PlannerApp() {
   return (
     <ThemeProvider value={theme}>
       <View style={[styles.outer, { backgroundColor: colors.subtle }]}>
-        <StatusBar style={colors.dark ? 'light' : 'dark'} />
+        <StatusBar style={colors.dark && appVisible ? 'light' : 'dark'} />
         <View style={[styles.frame, { backgroundColor: colors.bg }, Platform.OS === 'web' && { shadowColor: colors.shadow }]}>
           <View style={[styles.screen, { paddingTop: topInset }]}>
-            {!hydrated ? <View style={styles.loader}>
-              <ElfPortrait level={0} size={132} />
-              <ActivityIndicator color={colors.gold} size="small" style={{ marginTop: 20 }} />
-              <Text style={[styles.loaderTitle, { color: colors.forest, fontFamily: serif }]}>Просыпаем лес…</Text>
-              <Text style={[styles.loaderText, { color: colors.muted }]}>Собираем ваши дела и заметки</Text>
-            </View> : <>
+            {hydrated && <>
               {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onFocus={() => setFocusVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} />}
               {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
               {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onMark={markHabit} onAdd={() => setHabitFormVisible(true)} />}
@@ -509,10 +508,10 @@ export default function PlannerApp() {
               {activeTab === 'shopping' && <ShoppingScreen items={data.shopping} templates={data.templates} refreshing={refreshing} onRefresh={hydrate} onAdd={addShoppingItem} onToggle={toggleShoppingItem} onRemove={removeShoppingItem} onClear={requestNewShoppingList} onSaveTemplate={saveTemplate} onApplyTemplate={applyTemplate} onDeleteTemplate={deleteTemplate} />}
             </>}
           </View>
-          {hydrated && activeTab === 'today' && <Pressable onPress={() => openNewTask()} accessibilityLabel="Добавить задачу" style={({ pressed }) => [styles.fab, { backgroundColor: colors.terra, bottom: fabBottom, shadowColor: colors.shadow }, pressed && { transform: [{ scale: 0.92 }] }]}>
+          {appVisible && activeTab === 'today' && <Pressable onPress={() => openNewTask()} accessibilityLabel="Добавить задачу" style={({ pressed }) => [styles.fab, { backgroundColor: colors.terra, bottom: fabBottom, shadowColor: colors.shadow }, pressed && { transform: [{ scale: 0.92 }] }]}>
             <Ionicons name="add" size={31} color={colors.cream} />
           </Pressable>}
-          {hydrated && <BottomNav active={activeTab} onChange={changeTab} raised={isTelegram && activeTab === 'today'} telegramBottom={telegramBottom} />}
+          {appVisible && <BottomNav active={activeTab} onChange={changeTab} raised={isTelegram && activeTab === 'today'} telegramBottom={telegramBottom} />}
           {levelUpEvent && <View pointerEvents="none" style={[styles.toastPosition, { top: topInset + 12 }]}>
             <FadeIn key={levelUpEvent.id} style={[styles.levelToast, { backgroundColor: colors.card, borderColor: colors.gold, shadowColor: colors.shadow }]}>
               <SparkBurst trigger={levelUpEvent.id} />
@@ -524,6 +523,7 @@ export default function PlannerApp() {
               <GoldSpark size={22} />
             </FadeIn>
           </View>}
+          {!splashDone && <ElfSplash ready={hydrated} onDone={finishSplash} topInset={topInset} bottomInset={Math.max(insets.bottom, telegramBottom)} />}
         </View>
         <TaskForm ref={taskFormRef} visible={Boolean(taskDraft)} initial={taskDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setTaskDraft(null)} onSave={saveTask} onDelete={taskDraft?.id ? requestDeleteTask : undefined} />
         <NoteEditor ref={noteEditorRef} visible={Boolean(noteDraft)} initial={noteDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setNoteDraft(null)} onSave={saveNote} />
@@ -561,9 +561,6 @@ const styles = StyleSheet.create({
   outer: { flex: 1 },
   frame: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center', overflow: 'hidden', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.12, shadowRadius: 24 },
   screen: { flex: 1 },
-  loader: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, paddingBottom: 70 },
-  loaderTitle: { fontSize: 25, marginTop: 16 },
-  loaderText: { fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 7 },
   fab: { position: 'absolute', right: 20, width: 59, height: 59, borderRadius: 30, alignItems: 'center', justifyContent: 'center', zIndex: 40, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
   statsHeader: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   statsBack: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
