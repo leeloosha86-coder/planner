@@ -361,6 +361,7 @@ app.get('/', (_req, res) => res.type('text/plain').send('Мой планиров
 app.post('/api/timezone', authenticate, wrap(async (req, res) => {
   const timezone = cleanTimezone(req.body?.timezone);
   await pool.query('UPDATE users SET timezone = $1 WHERE telegram_id = $2', [timezone, req.telegramId]);
+  await refreshReminders(req.telegramId);
   res.json({ timezone });
 }));
 
@@ -375,6 +376,7 @@ app.put('/api/state', authenticate, wrap(async (req, res) => {
   }
   try {
     await saveState(req.telegramId, input);
+    await refreshReminders(req.telegramId);
     return res.json({ ok: true, data: await getState(req.telegramId) });
   } catch (error) {
     console.error('Ошибка сохранения:', error);
@@ -404,6 +406,7 @@ app.post(`/api/telegram/webhook/${WEBHOOK_SECRET}`, wrap(async (req, res) => {
   if (!/^\/start(?:@\w+)?(?:\s|$)/.test(message.text || '')) return;
   await ensureUser(telegramId);
   await pool.query('UPDATE users SET bot_started = 1, bot_blocked = 0 WHERE telegram_id = $1', [telegramId]);
+  await refreshReminders(telegramId);
   try {
     await sendTelegram('sendMessage', {
       chat_id: message.chat.id,
@@ -449,33 +452,59 @@ function occursOn(task, key) {
   return date.getUTCDate() === created.getUTCDate() && date.getUTCMonth() === created.getUTCMonth();
 }
 
+const reminderCache = new Map();
+
+// Обновление кэша - вспомогательное: сбой здесь не должен ломать уже выполненное сохранение.
+async function refreshReminders(telegramId) {
+  try {
+    const { rows: [user] } = await pool.query('SELECT timezone, bot_started, bot_blocked FROM users WHERE telegram_id = $1', [telegramId]);
+    if (!user?.bot_started || user.bot_blocked) {
+      reminderCache.delete(telegramId);
+      return;
+    }
+    const { rows: tasks } = await pool.query('SELECT * FROM tasks WHERE telegram_id = $1', [telegramId]);
+    reminderCache.set(telegramId, { timezone: user.timezone, tasks });
+  } catch (error) {
+    console.error('Не удалось обновить расписание напоминаний:', error.message);
+  }
+}
+
+async function loadReminders() {
+  try {
+    const { rows: users } = await pool.query('SELECT telegram_id FROM users WHERE bot_started = 1 AND bot_blocked = 0');
+    for (const { telegram_id: telegramId } of users) await refreshReminders(telegramId);
+  } catch (error) {
+    console.error('Не удалось загрузить расписание напоминаний при запуске:', error.message);
+  }
+}
+
 let reminderRunning = false;
 async function runReminders() {
   if (!BOT_TOKEN || reminderRunning) return;
   reminderRunning = true;
   try {
-    const { rows: users } = await pool.query('SELECT * FROM users WHERE bot_started = 1 AND bot_blocked = 0');
-    for (const user of users) {
-      const current = localParts(new Date(), user.timezone);
-      const sphereRows = await userSpheres(user.telegram_id);
-      const { rows: tasks } = await pool.query(
-        `SELECT * FROM tasks WHERE telegram_id = $1 AND time = $2 AND (last_reminder != $3 OR last_reminder = '')`,
-        [user.telegram_id, current.time, `${current.date} ${current.time}`],
-      );
+    for (const [telegramId, entry] of reminderCache) {
+      const current = localParts(new Date(), entry.timezone);
+      const key = `${current.date} ${current.time}`;
+      const tasks = entry.tasks.filter((task) => task.time === current.time && task.last_reminder !== key);
+      if (tasks.length === 0) continue;
+      const sphereRows = await userSpheres(telegramId);
       for (const task of tasks) {
         if (!occursOn(task, current.date)) continue;
         const done = task.repeat_rule === 'none' ? Boolean(task.completed) : parseJsonArray(task.completed_dates).includes(current.date);
         if (done) continue;
         try {
           await sendTelegram('sendMessage', {
-            chat_id: Number(user.telegram_id),
+            chat_id: Number(telegramId),
             text: `Напоминание · ${task.time}\n\n${task.title}\n${sphereLabel(sphereRows, task.sphere)}`,
             ...(MINI_APP_URL ? { reply_markup: { inline_keyboard: [[{ text: 'Открыть на сегодня', web_app: { url: MINI_APP_URL } }]] } } : {}),
           });
-          await pool.query('UPDATE tasks SET last_reminder = $1 WHERE id = $2', [`${current.date} ${current.time}`, task.id]);
+          await pool.query('UPDATE tasks SET last_reminder = $1 WHERE id = $2', [key, task.id]);
+          task.last_reminder = key;
         } catch (error) {
           if (error.status === 403) {
-            await pool.query('UPDATE users SET bot_blocked = 1 WHERE telegram_id = $1', [user.telegram_id]);
+            await pool.query('UPDATE users SET bot_blocked = 1 WHERE telegram_id = $1', [telegramId]);
+            reminderCache.delete(telegramId);
             break;
           }
           console.error('Напоминание не отправлено:', error.message);
@@ -513,6 +542,7 @@ app.use((error, _req, res, _next) => {
 async function start() {
   await pool.query(SCHEMA);
   await migrate();
+  await loadReminders();
   app.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
     configureBot();
