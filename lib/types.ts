@@ -1,6 +1,7 @@
 export type SphereId = string;
 export type SphereFilter = 'all' | SphereId;
-export type RepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly' | 'quarterly' | 'yearly';
+export type PresetRepeat = 'none' | 'daily' | 'weekdays' | 'weekly' | 'quarterly' | 'yearly';
+export type RepeatRule = PresetRepeat | `every:${number}` | `days:${string}`;
 export type TabId = 'today' | 'schedule' | 'habits' | 'notes' | 'shopping';
 
 export interface SphereCustom {

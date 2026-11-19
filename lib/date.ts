@@ -1,6 +1,6 @@
 import type { RepeatRule, Task } from './types';
 
-const DAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+export const DAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const DAYS_FULL = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
 const MONTHS_GENITIVE = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -67,10 +67,62 @@ export function greeting(date: Date): string {
   return 'Доброй ночи';
 }
 
+export const MAX_EVERY_DAYS = 365;
+export const MAX_WEEK_INTERVAL = 52;
+const PRESET_REPEATS: readonly string[] = ['none', 'daily', 'weekdays', 'weekly', 'quarterly', 'yearly'];
+
+export type CustomRepeat = { kind: 'every'; step: number } | { kind: 'days'; days: number[]; weeks: number };
+
+export function parseRepeat(rule: string): CustomRepeat | null {
+  const every = /^every:(\d+)$/.exec(rule);
+  if (every) {
+    const step = Number(every[1]);
+    return step >= 1 && step <= MAX_EVERY_DAYS ? { kind: 'every', step } : null;
+  }
+  const days = /^days:([0-6](?:,[0-6])*)(?:\/(\d+))?$/.exec(rule);
+  if (days) {
+    const weeks = days[2] ? Number(days[2]) : 1;
+    return weeks >= 1 && weeks <= MAX_WEEK_INTERVAL ? { kind: 'days', days: days[1].split(',').map(Number), weeks } : null;
+  }
+  return null;
+}
+
+export function isValidRepeat(value: unknown): value is RepeatRule {
+  return typeof value === 'string' && (PRESET_REPEATS.includes(value) || parseRepeat(value) !== null);
+}
+
+export function makeEveryRule(step: number): RepeatRule {
+  return `every:${step}`;
+}
+
+export function makeDaysRule(days: number[], weeks: number): RepeatRule {
+  const list = [...new Set(days)].sort((a, b) => a - b).join(',');
+  return weeks > 1 ? `days:${list}/${weeks}` : `days:${list}`;
+}
+
+export function weeksWord(value: number): string {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'неделю';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'недели';
+  return 'недель';
+}
+
+function dayNumber(key: string): number {
+  const [year, month, day] = key.split('-').map(Number);
+  return Date.UTC(year, month - 1, day) / 86400000;
+}
+
 export function taskOccursOn(task: Task, key: string): boolean {
   if (task.repeat === 'none') return task.date === key;
   if (key < task.date) return false;
   if (task.repeat === 'daily') return true;
+  const custom = parseRepeat(task.repeat);
+  if (custom?.kind === 'every') return (dayNumber(key) - dayNumber(task.date)) % custom.step === 0;
+  if (custom?.kind === 'days') {
+    const weekIndex = Math.floor((dayIndex(fromDateKey(task.date)) + dayNumber(key) - dayNumber(task.date)) / 7);
+    return weekIndex % custom.weeks === 0 && custom.days.includes(dayIndex(fromDateKey(key)));
+  }
   const date = fromDateKey(key);
   const start = fromDateKey(task.date);
   if (task.repeat === 'weekdays') return dayIndex(date) < 5;
@@ -89,6 +141,12 @@ export function repeatLabel(rule: RepeatRule): string {
   if (rule === 'weekly') return 'еженедельно';
   if (rule === 'quarterly') return 'раз в квартал';
   if (rule === 'yearly') return 'раз в год';
+  const custom = parseRepeat(rule);
+  if (custom?.kind === 'every') return custom.step === 1 ? 'ежедневно' : `каждые ${custom.step} ${daysWord(custom.step)}`;
+  if (custom?.kind === 'days') {
+    const names = [...custom.days].sort((a, b) => a - b).map((day) => DAYS_SHORT[day]).join(', ');
+    return custom.weeks === 1 ? `по ${names}` : `раз в ${custom.weeks} ${weeksWord(custom.weeks)}, по ${names}`;
+  }
   return '';
 }
 
@@ -112,10 +170,9 @@ export function tasksForDate(tasks: Task[], key: string): Task[] {
 }
 
 export function rolloverOverdueTasks(tasks: Task[], today = dateKey(new Date())): Task[] {
-  const tomorrow = dateKey(addDays(new Date(), 1));
   return tasks.map((task) => {
     if (task.repeat === 'none' && !task.completed && task.date < today) {
-      return { ...task, date: tomorrow };
+      return { ...task, date: today };
     }
     return task;
   });
@@ -160,6 +217,17 @@ export function repeatDescription(rule: RepeatRule, key: string): string {
   if (rule === 'weekly') return `Задача будет появляться каждую неделю: ${DAYS_FULL[dayIndex(fromDateKey(key))]}`;
   if (rule === 'quarterly') return `Задача будет появляться раз в три месяца, ${fromDateKey(key).getDate()} числа`;
   if (rule === 'yearly') return `Задача будет появляться раз в год, ${fromDateKey(key).getDate()} ${MONTHS_GENITIVE[fromDateKey(key).getMonth()]}`;
+  const custom = parseRepeat(rule);
+  if (custom?.kind === 'every') {
+    return custom.step === 1
+      ? 'Задача будет появляться каждый день'
+      : `Задача будет появляться каждые ${custom.step} ${daysWord(custom.step)}, начиная с ${formatShortDate(key)}`;
+  }
+  if (custom?.kind === 'days') {
+    const names = [...custom.days].sort((a, b) => a - b).map((day) => DAYS_SHORT[day]).join(', ');
+    const pattern = custom.weeks === 1 ? 'по дням недели' : `раз в ${custom.weeks} ${weeksWord(custom.weeks)} по дням недели`;
+    return `Задача будет появляться ${pattern}: ${names}`;
+  }
   return 'Один раз, без повторения';
 }
 
