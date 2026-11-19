@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { COLLECTIONS, switchCollection, useCollection } from '../lib/collection';
 import { LEVELS, MAX_XP } from '../lib/constants';
 import { useTheme } from '../lib/theme';
 import ElfPortrait from './ElfPortrait';
@@ -8,6 +9,7 @@ import SparkBurst from './SparkBurst';
 
 export default function ExperienceCard({ xp, celebrationSignal }: { xp: number; celebrationSignal: number }) {
   const { colors, serif, cardShadow } = useTheme();
+  const collection = useCollection();
   const level = LEVELS.reduce((result, item, index) => xp >= item.xp ? index : result, 0);
   const current = LEVELS[level];
   const next = LEVELS[level + 1];
@@ -74,6 +76,9 @@ export default function ExperienceCard({ xp, celebrationSignal }: { xp: number; 
           {next ? `Ещё ${next.xp - xp} XP до „${next.genitive}“` : `Высшая стадия · ${MAX_XP} XP`}
         </Text>
         <Text style={[styles.reward, { color: colors.sage }]}>+10 XP за каждое доброе дело</Text>
+        <Pressable onPress={switchCollection} accessibilityRole="button" accessibilityLabel={`Коллекция: ${COLLECTIONS[collection]}. Нажмите, чтобы сменить`} style={[styles.collectionChip, { backgroundColor: colors.goldSoft, borderColor: colors.gold }]}>
+          <Text style={[styles.collectionText, { color: colors.text }]}>{`Коллекция: ${COLLECTIONS[collection]}`}</Text>
+        </Pressable>
       </View>
       {announcement && <Animated.View style={[styles.announcement, { backgroundColor: colors.gold, opacity: flash.interpolate({ inputRange: [0, 0.2, 1], outputRange: [1, 1, 0.94] }) }]}>
         <GoldSpark size={17} />
@@ -101,6 +106,8 @@ const styles = StyleSheet.create({
   nextXp: { fontSize: 11 },
   hint: { fontSize: 12.5, lineHeight: 17, marginTop: 6 },
   reward: { fontSize: 11.5, lineHeight: 15, marginTop: 5, fontWeight: '600' },
+  collectionChip: { alignSelf: 'flex-start', maxWidth: '100%', marginTop: 9, borderRadius: 10, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 4 },
+  collectionText: { fontSize: 11.5, fontWeight: '700' },
   announcement: { position: 'absolute', top: 10, alignSelf: 'center', zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 16 },
   announcementText: { fontSize: 15, fontWeight: '800' },
 });
