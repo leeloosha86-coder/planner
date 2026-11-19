@@ -1,21 +1,26 @@
-import React from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { currentStreak, dateKey, daysWord, lastThirtyDays } from '../lib/date';
+import { addDays, currentStreak, dateKey, daysWord, formatLongDate, formatShortDate, fromDateKey, lastThirtyDays } from '../lib/date';
 import { sphereById } from '../lib/spheres';
 import type { Habit, SphereCustom } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { EmptyState, FadeIn, PrimaryButton } from '../components/UI';
 import { ForestCorner, GoldSpark } from '../components/Decor';
 
-function HabitCard({ habit, spheres, index, onMark }: { habit: Habit; spheres: SphereCustom[]; index: number; onMark: () => void }) {
+function HabitCard({ habit, spheres, index, onToggleDay }: { habit: Habit; spheres: SphereCustom[]; index: number; onToggleDay: (day: string) => void }) {
   const { colors, serif, cardShadow } = useTheme();
+  const [page, setPage] = useState(0);
   const sphere = sphereById(spheres, habit.sphere);
   const history = new Set(habit.history);
-  const today = dateKey(new Date());
+  const now = new Date();
+  const today = dateKey(now);
+  const created = dateKey(new Date(habit.createdAt));
   const markedToday = history.has(today);
   const streak = currentStreak(habit.history);
-  const days = lastThirtyDays();
+  const days = lastThirtyDays(addDays(now, -page * 30));
+  const canGoEarlier = days[0] > created;
+  const canGoLater = page > 0;
   return (
     <FadeIn delay={Math.min(index * 80, 240)} style={styles.habitFade}>
       <View style={[styles.habitCard, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow]}>
@@ -31,29 +36,34 @@ function HabitCard({ habit, spheres, index, onMark }: { habit: Habit; spheres: S
           </View>
         </View>
         <View style={styles.gridHeader}>
-          <Text style={[styles.gridTitle, { color: colors.muted }]}>Последние 30 дней</Text>
+          <View style={styles.pagerRow}><Pressable onPress={() => setPage((value) => value + 1)} disabled={!canGoEarlier} hitSlop={8} accessibilityRole="button" accessibilityLabel="Раньше" style={[styles.pager, { opacity: canGoEarlier ? 1 : 0.3 }]}><Ionicons name="chevron-back" size={18} color={colors.forest} /></Pressable><Text style={[styles.gridTitle, { color: colors.muted }]}>{page === 0 ? 'Последние 30 дней' : `${formatShortDate(days[0])} – ${formatShortDate(days[days.length - 1])}`}</Text><Pressable onPress={() => setPage((value) => value - 1)} disabled={!canGoLater} hitSlop={8} accessibilityRole="button" accessibilityLabel="Позже" style={[styles.pager, { opacity: canGoLater ? 1 : 0.3 }]}><Ionicons name="chevron-forward" size={18} color={colors.forest} /></Pressable></View>
           <View style={styles.gridLegend}><View style={[styles.legendDot, { backgroundColor: sphere.color }]} /><Text style={[styles.gridLegendText, { color: colors.muted }]}>отмечено</Text></View>
         </View>
         <View style={styles.grid}>
           {days.map((day) => {
             const marked = history.has(day);
             const isToday = day === today;
-            return <View key={day} style={styles.dotCell}><View style={[styles.dayDot, { backgroundColor: marked ? sphere.color : colors.subtle, borderColor: isToday ? colors.gold : 'transparent', borderWidth: isToday ? 2 : 0 }]}>{marked && <View style={[styles.dotShine, { backgroundColor: colors.cream }]} />}</View></View>;
+            const editable = day >= created;
+            return (
+              <Pressable key={day} disabled={!editable} onPress={() => onToggleDay(day)} accessibilityRole="button" accessibilityLabel={`${formatLongDate(fromDateKey(day))}, ${marked ? 'отмечено' : 'не отмечено'}`} style={styles.dotCell}>
+                <View style={[styles.dayDot, { backgroundColor: marked ? sphere.color : colors.subtle, borderColor: isToday ? colors.gold : 'transparent', borderWidth: isToday ? 2 : 0, opacity: editable ? 1 : 0.35 }]}>{marked && <View style={[styles.dotShine, { backgroundColor: colors.cream }]} />}</View>
+              </Pressable>
+            );
           })}
         </View>
-        <PrimaryButton label={markedToday ? 'Отмечено сегодня' : 'Отметить сегодня'} icon={markedToday ? 'checkmark-circle' : 'add-circle-outline'} variant={markedToday ? 'soft' : 'forest'} disabled={markedToday} onPress={onMark} compact />
+        <PrimaryButton label={markedToday ? 'Отмечено сегодня' : 'Отметить сегодня'} icon={markedToday ? 'checkmark-circle' : 'add-circle-outline'} variant={markedToday ? 'soft' : 'forest'} disabled={markedToday} onPress={() => onToggleDay(today)} compact />
         {!markedToday && <Text style={[styles.rewardHint, { color: colors.gold }]}>+10 XP и ещё один день в ряду</Text>}
       </View>
     </FadeIn>
   );
 }
 
-export default function HabitsScreen({ habits, spheres, refreshing, onRefresh, onMark, onAdd }: {
+export default function HabitsScreen({ habits, spheres, refreshing, onRefresh, onToggleDay, onAdd }: {
   habits: Habit[];
   spheres: SphereCustom[];
   refreshing: boolean;
   onRefresh: () => void;
-  onMark: (habit: Habit) => void;
+  onToggleDay: (habitId: string, day: string) => void;
   onAdd: () => void;
 }) {
   const { colors, serif } = useTheme();
@@ -87,7 +97,7 @@ export default function HabitsScreen({ habits, spheres, refreshing, onRefresh, o
       style={{ backgroundColor: colors.bg }}
       data={habits}
       keyExtractor={(item) => item.id}
-      renderItem={({ item, index }) => <HabitCard habit={item} spheres={spheres} index={index} onMark={() => onMark(item)} />}
+      renderItem={({ item, index }) => <HabitCard habit={item} spheres={spheres} index={index} onToggleDay={(day) => onToggleDay(item.id, day)} />}
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyState icon="leaf-outline" title="Пока нет привычек" subtitle="Начните с одного простого действия — золотые точки покажут ваш путь" actionLabel="Добавить привычку" onAction={onAdd} />}
       contentContainerStyle={[styles.content, habits.length === 0 && { flexGrow: 1 }]}
@@ -124,8 +134,10 @@ const styles = StyleSheet.create({
   streakWrap: { alignItems: 'center', minWidth: 54 },
   streakNumber: { fontSize: 40, lineHeight: 43 },
   streakLabel: { fontSize: 11.5, lineHeight: 15 },
-  gridHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 9 },
+  gridHeader: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 6, alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 9 },
   gridTitle: { fontSize: 12, fontWeight: '600' },
+  pagerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pager: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   gridLegend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 6, height: 6, borderRadius: 3 },
   gridLegendText: { fontSize: 10.5 },

@@ -112,7 +112,21 @@ function cleanTimezone(value) {
   }
 }
 const levelForXp = (xp) => xp >= 500 ? 5 : xp >= 300 ? 4 : xp >= 150 ? 3 : xp >= 50 ? 2 : 1;
-const validRepeats = new Set(['none', 'daily', 'weekdays', 'weekly', 'quarterly', 'yearly']);
+const presetRepeats = new Set(['none', 'daily', 'weekdays', 'weekly', 'quarterly', 'yearly']);
+function parseCustomRepeat(rule) {
+  const every = /^every:(\d+)$/.exec(rule || '');
+  if (every) {
+    const step = Number(every[1]);
+    return step >= 1 && step <= 365 ? { kind: 'every', step } : null;
+  }
+  const days = /^days:([0-6](?:,[0-6])*)(?:\/(\d+))?$/.exec(rule || '');
+  if (days) {
+    const weeks = days[2] ? Number(days[2]) : 1;
+    return weeks >= 1 && weeks <= 52 ? { kind: 'days', days: days[1].split(',').map(Number), weeks } : null;
+  }
+  return null;
+}
+const cleanRepeat = (value) => (presetRepeats.has(value) || parseCustomRepeat(value) ? value : 'none');
 
 const DEFAULT_SPHERES = [
   { id: 'home', name: 'Дом', color: '#C06A45' },
@@ -303,7 +317,7 @@ async function saveState(telegramId, input) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           id, telegramId, title, cleanTime(task.time),
-          validRepeats.has(task.repeat) ? task.repeat : 'none',
+          cleanRepeat(task.repeat),
           pickSphere(task.sphere), cleanDate(task.date),
           cleanText(task.createdAt, 40) || timestamp, task.completed ? 1 : 0,
           JSON.stringify(cleanDateList(task.completedDates)), task.important ? 1 : 0, reminders.get(id) || '',
@@ -441,6 +455,17 @@ function occursOn(task, key) {
   if (task.repeat_rule === 'daily') return true;
   const date = new Date(`${key}T12:00:00Z`);
   const index = (date.getUTCDay() + 6) % 7;
+  const custom = parseCustomRepeat(task.repeat_rule);
+  const dayNumber = (value) => {
+    const [year, month, day] = value.split('-').map(Number);
+    return Date.UTC(year, month - 1, day) / 86400000;
+  };
+  if (custom?.kind === 'every') return (dayNumber(key) - dayNumber(task.due_date)) % custom.step === 0;
+  if (custom?.kind === 'days') {
+    const startIndex = (new Date(`${task.due_date}T12:00:00Z`).getUTCDay() + 6) % 7;
+    const weekIndex = Math.floor((startIndex + dayNumber(key) - dayNumber(task.due_date)) / 7);
+    return weekIndex % custom.weeks === 0 && custom.days.includes(index);
+  }
   if (task.repeat_rule === 'weekdays') return index < 5;
   const created = new Date(`${task.due_date}T12:00:00Z`);
   if (task.repeat_rule === 'weekly') return index === (created.getUTCDay() + 6) % 7;

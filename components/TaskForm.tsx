@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { REPEAT_OPTIONS } from '../lib/constants';
-import { formatLongDate, fromDateKey, repeatDescription } from '../lib/date';
+import { DAYS_SHORT, MAX_EVERY_DAYS, MAX_WEEK_INTERVAL, dayIndex, daysWord, formatLongDate, fromDateKey, makeDaysRule, makeEveryRule, parseRepeat, repeatDescription, weeksWord } from '../lib/date';
 import type { RepeatRule, SphereCustom, TaskDraft } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { ChoiceChip, FieldLabel, PrimaryButton } from './UI';
@@ -28,6 +28,19 @@ const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, 
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<TaskDraft>(initial || EMPTY);
   const [error, setError] = useState('');
+  const custom = parseRepeat(draft.repeat);
+  const setRepeat = (repeat: RepeatRule) => setDraft((current) => ({ ...current, repeat }));
+  const pickEvery = () => {
+    if (custom?.kind !== 'every') setRepeat(makeEveryRule(2));
+  };
+  const pickDays = () => {
+    if (custom?.kind !== 'days') setRepeat(makeDaysRule([draft.date ? dayIndex(fromDateKey(draft.date)) : 0], 1));
+  };
+  const toggleWeekDay = (index: number) => {
+    if (custom?.kind !== 'days') return;
+    const next = custom.days.includes(index) ? custom.days.filter((day) => day !== index) : [...custom.days, index];
+    if (next.length > 0) setRepeat(makeDaysRule(next, custom.weeks));
+  };
 
   useEffect(() => {
     if (visible && initial) {
@@ -125,7 +138,26 @@ const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, 
               <FieldLabel>Повтор</FieldLabel>
               <View style={styles.wrap}>
                 {REPEAT_OPTIONS.map((option) => <ChoiceChip key={option.id} label={option.label} small selected={draft.repeat === option.id} color={colors.forest} onPress={() => setDraft((current) => ({ ...current, repeat: option.id as RepeatRule }))} />)}
+                <ChoiceChip label="Свой интервал" small selected={custom?.kind === 'every'} color={colors.forest} onPress={pickEvery} />
+                <ChoiceChip label="По дням недели" small selected={custom?.kind === 'days'} color={colors.forest} onPress={pickDays} />
               </View>
+              {custom?.kind === 'every' && (
+                <View style={styles.stepperRow}>
+                  <Text style={[styles.stepperLabel, { color: colors.text }]}>Повторять каждые</Text>
+                  <Stepper value={custom.step} min={1} max={MAX_EVERY_DAYS} unit={daysWord(custom.step)} onChange={(step) => setRepeat(makeEveryRule(step))} />
+                </View>
+              )}
+              {custom?.kind === 'days' && (
+                <>
+                  <View style={styles.weekRow}>
+                    {DAYS_SHORT.map((label, index) => <ChoiceChip key={label} label={label} small selected={custom.days.includes(index)} color={colors.forest} onPress={() => toggleWeekDay(index)} />)}
+                  </View>
+                  <View style={styles.stepperRow}>
+                    <Text style={[styles.stepperLabel, { color: colors.text }]}>Раз в</Text>
+                    <Stepper value={custom.weeks} min={1} max={MAX_WEEK_INTERVAL} unit={weeksWord(custom.weeks)} onChange={(weeks) => setRepeat(makeDaysRule(custom.days, weeks))} />
+                  </View>
+                </>
+              )}
               <Text style={[styles.hint, { color: colors.muted }]}>{repeatDescription(draft.repeat, draft.date)}</Text>
               <SpherePicker spheres={spheres} value={draft.sphere || spheres[0]?.id || ''} onChange={(sphere) => setDraft((current) => ({ ...current, sphere }))} />
               {!!error && <View style={[styles.errorBox, { backgroundColor: colors.terraSoft }]}><Ionicons name="alert-circle-outline" size={18} color={colors.terra} /><Text style={[styles.error, { color: colors.terra }]}>{error}</Text></View>}
@@ -140,6 +172,22 @@ const TaskForm = forwardRef<TaskFormHandle, Props>(function TaskForm({ visible, 
 });
 
 export default TaskForm;
+
+function Stepper({ value, min, max, unit, onChange }: { value: number; min: number; max: number; unit: string; onChange: (value: number) => void }) {
+  const { colors } = useTheme();
+  const stepButton = (icon: 'remove' | 'add', label: string, next: number, disabled: boolean) => (
+    <Pressable onPress={() => onChange(next)} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} hitSlop={6} style={[styles.stepButton, { backgroundColor: colors.subtle, opacity: disabled ? 0.4 : 1 }]}>
+      <Ionicons name={icon} size={18} color={colors.forest} />
+    </Pressable>
+  );
+  return (
+    <View style={[styles.stepper, { borderColor: colors.border, backgroundColor: colors.input }]}>
+      {stepButton('remove', 'Меньше', value - 1, value <= min)}
+      <Text style={[styles.stepValue, { color: colors.text }]}>{`${value} ${unit}`}</Text>
+      {stepButton('add', 'Больше', value + 1, value >= max)}
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -159,6 +207,12 @@ const styles = StyleSheet.create({
   clearTime: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, minHeight: 45, justifyContent: 'center' },
   quickTimes: { flexDirection: 'row', gap: 8, marginTop: 9 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  stepperLabel: { fontSize: 14.5, fontWeight: '600' },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 6, paddingVertical: 5, gap: 8 },
+  stepButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  stepValue: { fontSize: 15, fontWeight: '600', minWidth: 78, textAlign: 'center' },
+  weekRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   hint: { fontSize: 13, lineHeight: 18, marginTop: 9 },
   importantRow: { flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, minHeight: 48 },
   importantDot: { width: 9, height: 9, borderRadius: 5 },

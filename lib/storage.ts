@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { dateKey, makeId, rolloverOverdueTasks } from './date';
+import { dateKey, isValidRepeat, makeId, rolloverOverdueTasks } from './date';
 import { DEFAULT_SPHERES, fallbackSphereId, modernSphereId, normalizeSpheres } from './spheres';
 import { getTelegram } from './telegram';
 import type { FocusSession, Habit, Note, PlannerData, ShoppingItem, ShoppingTemplate, Task } from './types';
@@ -117,7 +117,7 @@ export function normalize(value: Partial<PlannerData>): PlannerData {
   const habits = Array.isArray(value.habits) ? value.habits : fallback.habits;
   const notes = Array.isArray(value.notes) ? value.notes : fallback.notes;
   return {
-    tasks: tasks.map((task) => ({ ...task, sphere: adopt(task.sphere), important: Boolean(task.important) })),
+    tasks: tasks.map((task) => ({ ...task, repeat: isValidRepeat(task.repeat) ? task.repeat : 'none', sphere: adopt(task.sphere), important: Boolean(task.important) })),
     habits: habits.map((habit) => ({ ...habit, sphere: adopt(habit.sphere) })),
     notes: notes.map((note) => ({ ...note, sphere: adopt(note.sphere) })),
     spheres,

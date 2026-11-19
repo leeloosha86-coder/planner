@@ -276,14 +276,21 @@ export default function PlannerApp() {
     });
   };
 
-  const markHabit = (habit: Habit) => {
-    if (habit.history.includes(today)) return;
+  const toggleHabitDay = (habitId: string, day: string) => {
     haptic('light');
-    commit((current) => ({
-      ...current,
-      xp: Math.min(MAX_XP, current.xp + TASK_XP),
-      habits: current.habits.map((item) => item.id === habit.id ? { ...item, history: [...new Set([...item.history, today])].sort() } : item),
-    }));
+    commit((current) => {
+      const target = current.habits.find((habit) => habit.id === habitId);
+      if (!target) return current;
+      const wasMarked = target.history.includes(day);
+      return {
+        ...current,
+        xp: Math.max(0, Math.min(MAX_XP, current.xp + (wasMarked ? -TASK_XP : TASK_XP))),
+        habits: current.habits.map((habit) => habit.id !== habitId ? habit : {
+          ...habit,
+          history: wasMarked ? habit.history.filter((item) => item !== day) : [...new Set([...habit.history, day])].sort(),
+        }),
+      };
+    });
   };
 
   const saveHabit = (name: string, sphere: string) => {
@@ -503,7 +510,7 @@ export default function PlannerApp() {
             {hydrated && <>
               {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onFocus={() => setFocusVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} />}
               {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
-              {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onMark={markHabit} onAdd={() => setHabitFormVisible(true)} />}
+              {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onToggleDay={toggleHabitDay} onAdd={() => setHabitFormVisible(true)} />}
               {activeTab === 'notes' && <NotesScreen notes={data.notes} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
               {activeTab === 'shopping' && <ShoppingScreen items={data.shopping} templates={data.templates} refreshing={refreshing} onRefresh={hydrate} onAdd={addShoppingItem} onToggle={toggleShoppingItem} onRemove={removeShoppingItem} onClear={requestNewShoppingList} onSaveTemplate={saveTemplate} onApplyTemplate={applyTemplate} onDeleteTemplate={deleteTemplate} />}
             </>}
