@@ -5,7 +5,6 @@ export interface DayStat {
   date: string;
   done: number;
   total: number;
-  focus: number;
 }
 
 function lastNDays(n: number, now = new Date()): string[] {
@@ -19,19 +18,12 @@ export function dayStats(data: PlannerData, now = new Date()): DayStat[] {
       date,
       done: dayTasks.filter((task) => isTaskDone(task, date)).length,
       total: dayTasks.length,
-      focus: data.focus.filter((session) => session.date === date).reduce((sum, session) => sum + session.minutes, 0),
     };
   });
 }
 
 export function doneThisWeek(data: PlannerData, now = new Date()): number {
   return dayStats(data, now).reduce((sum, day) => sum + day.done, 0);
-}
-
-export function focusThisWeek(data: PlannerData, now = new Date()): number {
-  return data.focus
-    .filter((session) => lastNDays(7, now).includes(session.date))
-    .reduce((sum, session) => sum + session.minutes, 0);
 }
 
 export function bestHabit(habits: Habit[]): { name: string; streak: number } | null {

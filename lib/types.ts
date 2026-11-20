@@ -52,11 +52,6 @@ export interface ShoppingTemplate {
   items: string[];
 }
 
-export interface FocusSession {
-  date: string;
-  minutes: number;
-}
-
 export interface PlannerData {
   tasks: Task[];
   habits: Habit[];
@@ -64,7 +59,6 @@ export interface PlannerData {
   spheres: SphereCustom[];
   shopping: ShoppingItem[];
   templates: ShoppingTemplate[];
-  focus: FocusSession[];
   xp: number;
   botStarted: boolean;
   updatedAt: string;

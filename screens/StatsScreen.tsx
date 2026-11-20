@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LEVELS } from '../lib/constants';
 import { fromDateKey, shortDay } from '../lib/date';
-import { bestHabit, dayStats, doneThisWeek, focusThisWeek } from '../lib/stats';
+import { bestHabit, dayStats, doneThisWeek } from '../lib/stats';
 import type { PlannerData } from '../lib/types';
 import { useTheme } from '../lib/theme';
 import { EmptyState } from '../components/UI';
@@ -18,7 +18,6 @@ export default function StatsScreen({ data, refreshing, onRefresh, celebrationSi
   const { colors, serif, cardShadow } = useTheme();
   const days = useMemo(() => dayStats(data), [data]);
   const week = doneThisWeek(data);
-  const focus = focusThisWeek(data);
   const best = bestHabit(data.habits);
   const maxDone = Math.max(1, ...days.map((day) => day.done));
 
@@ -45,10 +44,6 @@ export default function StatsScreen({ data, refreshing, onRefresh, celebrationSi
         <View style={[styles.tile, { backgroundColor: colors.goldSoft, borderColor: colors.gold }, cardShadow]}>
           <Text style={[styles.tileNumber, { color: colors.gold, fontFamily: serif }]}>{week}</Text>
           <Text style={[styles.tileLabel, { color: colors.text }]}>дел закрыто за неделю</Text>
-        </View>
-        <View style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow]}>
-          <Text style={[styles.tileNumber, { color: colors.forest, fontFamily: serif }]}>{focus}</Text>
-          <Text style={[styles.tileLabel, { color: colors.text }]}>минут в фокусе</Text>
         </View>
       </View>
 

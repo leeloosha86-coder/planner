@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dateKey, isValidRepeat, makeId, rolloverOverdueTasks } from './date';
 import { DEFAULT_SPHERES, fallbackSphereId, modernSphereId, normalizeSpheres } from './spheres';
 import { getTelegram } from './telegram';
-import type { FocusSession, Habit, Note, PlannerData, ShoppingItem, ShoppingTemplate, Task } from './types';
+import type { Habit, Note, PlannerData, ShoppingItem, ShoppingTemplate, Task } from './types';
 
 const STORAGE_KEY = 'moy-planirovshchik-data-v1';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
@@ -73,7 +73,6 @@ export function createInitialData(): PlannerData {
     spheres: DEFAULT_SPHERES.map((sphere) => ({ ...sphere })),
     shopping: [],
     templates: [],
-    focus: [],
     xp: 30,
     botStarted: false,
     updatedAt: new Date().toISOString(),
@@ -101,14 +100,6 @@ function normalizeTemplates(value: unknown): ShoppingTemplate[] {
     }));
 }
 
-function normalizeFocus(value: unknown): FocusSession[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is FocusSession => typeof item === 'object' && item !== null && typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && Number.isFinite(Number(item.minutes)))
-    .slice(-400)
-    .map((item) => ({ date: item.date, minutes: Math.max(0, Math.min(1440, Math.round(Number(item.minutes)))) }));
-}
-
 export function normalize(value: Partial<PlannerData>): PlannerData {
   const fallback = createInitialData();
   const spheres = normalizeSpheres(value.spheres);
@@ -123,7 +114,6 @@ export function normalize(value: Partial<PlannerData>): PlannerData {
     spheres,
     shopping: normalizeShopping(value.shopping),
     templates: normalizeTemplates(value.templates),
-    focus: normalizeFocus(value.focus),
     xp: Math.max(0, Math.min(500, Number(value.xp) || 0)),
     botStarted: Boolean(value.botStarted),
     updatedAt: value.updatedAt || fallback.updatedAt,

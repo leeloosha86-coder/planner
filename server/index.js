@@ -81,7 +81,6 @@ const SCHEMA = `
 async function migrate() {
   await pool.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS important INTEGER NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS templates TEXT NOT NULL DEFAULT '[]'");
-  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS focus TEXT NOT NULL DEFAULT '[]'");
   // Пояс по умолчанию для новых пользователей: UTC вместо Москвы.
   await pool.query("ALTER TABLE users ALTER COLUMN timezone SET DEFAULT 'UTC'");
 }
@@ -228,7 +227,6 @@ async function getState(telegramId) {
       id: row.id, title: row.title, text: row.text, sphere: row.sphere, createdAt: row.created_at, updatedAt: row.updated_at,
     })),
     templates: parseJsonArray(user.templates),
-    focus: parseJsonArray(user.focus),
     xp: Math.max(0, Math.min(500, user.xp)),
     botStarted: Boolean(user.bot_started && !user.bot_blocked),
     updatedAt: user.updated_at,
@@ -274,14 +272,6 @@ function cleanTemplates(value) {
     name: cleanText(item?.name, 60).trim(),
     items: Array.isArray(item?.items) ? item.items.filter((entry) => typeof entry === 'string').map((entry) => entry.slice(0, 120)).slice(0, 300) : [],
   })).filter((item) => item.name);
-}
-
-function cleanFocus(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item?.date || '') && Number.isFinite(Number(item?.minutes)))
-    .slice(-400)
-    .map((item) => ({ date: item.date, minutes: Math.max(0, Math.min(1440, Math.round(Number(item.minutes)))) }));
 }
 
 async function saveState(telegramId, input) {
@@ -358,8 +348,8 @@ async function saveState(telegramId, input) {
       );
     }
     await client.query(
-      'UPDATE users SET xp = $1, level = $2, timezone = $3, updated_at = $4, templates = $5, focus = $6 WHERE telegram_id = $7',
-      [xp, levelForXp(xp), timezone, timestamp, JSON.stringify(cleanTemplates(input.templates)), JSON.stringify(cleanFocus(input.focus)), telegramId],
+      'UPDATE users SET xp = $1, level = $2, timezone = $3, updated_at = $4, templates = $5 WHERE telegram_id = $6',
+      [xp, levelForXp(xp), timezone, timestamp, JSON.stringify(cleanTemplates(input.templates)), telegramId],
     );
     await client.query('COMMIT');
   } catch (error) {

@@ -31,4 +31,3 @@ export const REPEAT_OPTIONS = [
 
 export const MAX_XP = 500;
 export const TASK_XP = 10;
-export const FOCUS_XP = 10;

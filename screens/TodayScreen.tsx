@@ -10,7 +10,7 @@ import TaskCard from '../components/TaskCard';
 import { ChoiceChip, EmptyState } from '../components/UI';
 import { LeafMark } from '../components/Decor';
 
-export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres, onFocus, onStats, onRitual }: {
+export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres, onStats, onRitual }: {
   tasks: Task[];
   spheres: SphereCustom[];
   xp: number;
@@ -27,7 +27,6 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
   onOpenBot: () => void;
   onRetry: () => void;
   onManageSpheres: () => void;
-  onFocus: () => void;
   onStats: () => void;
   onRitual: () => void;
 }) {
@@ -59,9 +58,6 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
       </View>
       <ExperienceCard xp={xp} celebrationSignal={celebrationSignal} />
       <View style={styles.actions}>
-        <Pressable onPress={onFocus} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть фокус-таймер">
-          <Ionicons name="timer-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Фокус</Text>
-        </Pressable>
         <Pressable onPress={onStats} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть итоги недели">
           <Ionicons name="bar-chart-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Итоги</Text>
         </Pressable>
