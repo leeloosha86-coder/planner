@@ -13,11 +13,11 @@ export const COLORS = {
 } as const;
 
 export const LEVELS = [
-  { xp: 0, name: 'Сонная мечтательница', genitive: 'Сонной мечтательницы' },
-  { xp: 50, name: 'Любознательная эльфийка', genitive: 'Любознательной эльфийки' },
-  { xp: 150, name: 'Умелая планировщица', genitive: 'Умелой планировщицы' },
-  { xp: 300, name: 'Мастерица свершений', genitive: 'Мастерицы свершений' },
-  { xp: 500, name: 'Хранительница времени', genitive: 'Хранительницы времени' },
+  { xp: 0, name: 'Искательница', genitive: 'Искательницы' },
+  { xp: 50, name: 'Следопыт', genitive: 'Следопыта' },
+  { xp: 150, name: 'Авантюристка', genitive: 'Авантюристки' },
+  { xp: 300, name: 'Мастер', genitive: 'Мастера' },
+  { xp: 500, name: 'Легенда', genitive: 'Легенды' },
 ] as const;
 
 export const REPEAT_OPTIONS = [
