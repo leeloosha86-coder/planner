@@ -15,11 +15,9 @@ function HabitCard({ habit, spheres, index, onToggleDay }: { habit: Habit; spher
   const history = new Set(habit.history);
   const now = new Date();
   const today = dateKey(now);
-  const created = dateKey(new Date(habit.createdAt));
   const markedToday = history.has(today);
   const streak = currentStreak(habit.history);
   const days = lastThirtyDays(addDays(now, -page * 30));
-  const canGoEarlier = days[0] > created;
   const canGoLater = page > 0;
   return (
     <FadeIn delay={Math.min(index * 80, 240)} style={styles.habitFade}>
@@ -36,17 +34,16 @@ function HabitCard({ habit, spheres, index, onToggleDay }: { habit: Habit; spher
           </View>
         </View>
         <View style={styles.gridHeader}>
-          <View style={styles.pagerRow}><Pressable onPress={() => setPage((value) => value + 1)} disabled={!canGoEarlier} hitSlop={8} accessibilityRole="button" accessibilityLabel="Раньше" style={[styles.pager, { opacity: canGoEarlier ? 1 : 0.3 }]}><Ionicons name="chevron-back" size={18} color={colors.forest} /></Pressable><Text style={[styles.gridTitle, { color: colors.muted }]}>{page === 0 ? 'Последние 30 дней' : `${formatShortDate(days[0])} – ${formatShortDate(days[days.length - 1])}`}</Text><Pressable onPress={() => setPage((value) => value - 1)} disabled={!canGoLater} hitSlop={8} accessibilityRole="button" accessibilityLabel="Позже" style={[styles.pager, { opacity: canGoLater ? 1 : 0.3 }]}><Ionicons name="chevron-forward" size={18} color={colors.forest} /></Pressable></View>
+          <View style={styles.pagerRow}><Pressable onPress={() => setPage((value) => value + 1)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Раньше" style={styles.pager}><Ionicons name="chevron-back" size={18} color={colors.forest} /></Pressable><Text style={[styles.gridTitle, { color: colors.muted }]}>{page === 0 ? 'Последние 30 дней' : `${formatShortDate(days[0])} – ${formatShortDate(days[days.length - 1])}`}</Text><Pressable onPress={() => setPage((value) => value - 1)} disabled={!canGoLater} hitSlop={8} accessibilityRole="button" accessibilityLabel="Позже" style={[styles.pager, { opacity: canGoLater ? 1 : 0.3 }]}><Ionicons name="chevron-forward" size={18} color={colors.forest} /></Pressable></View>
           <View style={styles.gridLegend}><View style={[styles.legendDot, { backgroundColor: sphere.color }]} /><Text style={[styles.gridLegendText, { color: colors.muted }]}>отмечено</Text></View>
         </View>
         <View style={styles.grid}>
           {days.map((day) => {
             const marked = history.has(day);
             const isToday = day === today;
-            const editable = day >= created;
             return (
-              <Pressable key={day} disabled={!editable} onPress={() => onToggleDay(day)} accessibilityRole="button" accessibilityLabel={`${formatLongDate(fromDateKey(day))}, ${marked ? 'отмечено' : 'не отмечено'}`} style={styles.dotCell}>
-                <View style={[styles.dayDot, { backgroundColor: marked ? sphere.color : colors.subtle, borderColor: isToday ? colors.gold : 'transparent', borderWidth: isToday ? 2 : 0, opacity: editable ? 1 : 0.35 }]}>{marked && <View style={[styles.dotShine, { backgroundColor: colors.cream }]} />}</View>
+              <Pressable key={day} onPress={() => onToggleDay(day)} accessibilityRole="button" accessibilityLabel={`${formatLongDate(fromDateKey(day))}, ${marked ? 'отмечено' : 'не отмечено'}`} style={styles.dotCell}>
+                <View style={[styles.dayDot, { backgroundColor: marked ? sphere.color : colors.subtle, borderColor: isToday ? colors.gold : 'transparent', borderWidth: isToday ? 2 : 0 }]}>{marked && <View style={[styles.dotShine, { backgroundColor: colors.cream }]} />}</View>
               </Pressable>
             );
           })}
@@ -142,7 +139,7 @@ const styles = StyleSheet.create({
   legendDot: { width: 6, height: 6, borderRadius: 3 },
   gridLegendText: { fontSize: 10.5 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
-  dotCell: { width: '10%', alignItems: 'center', marginBottom: 8 },
+  dotCell: { width: '10%', height: 32, alignItems: 'center', justifyContent: 'center' },
   dayDot: { width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   dotShine: { width: 3, height: 3, borderRadius: 2, opacity: 0.6, position: 'absolute', top: 2, left: 2 },
   rewardHint: { fontSize: 11.5, lineHeight: 15, textAlign: 'center', marginTop: 7, fontWeight: '600' },
