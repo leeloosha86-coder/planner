@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { makeId } from '../lib/date';
 import { buildElfContext, levelIndexFor } from '../lib/elf';
@@ -21,6 +22,9 @@ const GREETING: ChatItem = {
   text: 'Привет! Я Рыжий Эльф. Расскажи, что на душе или что сегодня не складывается, и подумаем вместе.',
 };
 
+const CHAT_KEY = 'ryzhiy-elf-chat-v1';
+const CHAT_LIMIT = 60;
+
 export default function ElfChat({ visible, data, name, topInset, bottomInset, onClose }: {
   visible: boolean;
   data: PlannerData;
@@ -33,9 +37,30 @@ export default function ElfChat({ visible, data, name, topInset, bottomInset, on
   const [items, setItems] = useState<ChatItem[]>([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const listRef = useRef<FlatList<ChatItem>>(null);
   const text = input.trim();
   const canSend = text.length > 0 && !sending;
+
+  // Переписка хранится на телефоне, чтобы не пропадать после закрытия окна.
+  useEffect(() => {
+    AsyncStorage.getItem(CHAT_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (Array.isArray(saved) && saved.length) {
+          setItems([GREETING, ...saved.filter((item: ChatItem) => item && item.id !== GREETING.id)]);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!historyLoaded) return;
+    const toSave = items.filter((item) => item.role !== 'note' && item.id !== GREETING.id).slice(-CHAT_LIMIT);
+    AsyncStorage.setItem(CHAT_KEY, JSON.stringify(toSave)).catch(() => {});
+  }, [items, historyLoaded]);
 
   const send = async () => {
     if (!canSend) return;
