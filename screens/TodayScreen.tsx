@@ -56,7 +56,7 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
           <Text style={[styles.counterLabel, { color: colors.text }]}>готово</Text>
         </View>}
       </View>
-      <ExperienceCard xp={xp} celebrationSignal={celebrationSignal} />
+      <ExperienceCard xp={xp} celebrationSignal={celebrationSignal} showHint={false} />
       <View style={styles.actions}>
         <Pressable onPress={onStats} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть итоги недели">
           <Ionicons name="bar-chart-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Итоги</Text>
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   seasonText: { fontSize: 11.5, fontWeight: '600' },
   greetingRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 18 },
   greetingText: { flex: 1 },
-  greeting: { fontSize: 29, lineHeight: 34 },
+  greeting: { fontSize: 26, lineHeight: 34 },
   date: { fontSize: 15, lineHeight: 20, marginTop: 3, textTransform: 'capitalize' },
   counter: { minWidth: 65, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 18, borderWidth: 1, alignItems: 'center', marginBottom: 1 },
   counterNumber: { fontSize: 22, lineHeight: 24 },
