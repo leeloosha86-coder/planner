@@ -2,6 +2,7 @@ import 'dotenv/config';
 import crypto from 'node:crypto';
 import express from 'express';
 import pg from 'pg';
+import { elfChat } from './elf.js';
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const MINI_APP_URL = process.env.MINI_APP_URL || '';
@@ -361,7 +362,7 @@ async function saveState(telegramId, input) {
 }
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: nowIso() }));
-app.get('/', (_req, res) => res.type('text/plain').send('Мой планировщик: сервер работает'));
+app.get('/', (_req, res) => res.type('text/plain').send('Планировщик Рыжий Эльф: сервер работает'));
 app.post('/api/timezone', authenticate, wrap(async (req, res) => {
   const timezone = cleanTimezone(req.body?.timezone);
   await pool.query('UPDATE users SET timezone = $1 WHERE telegram_id = $2', [timezone, req.telegramId]);
@@ -387,6 +388,8 @@ app.put('/api/state', authenticate, wrap(async (req, res) => {
     return res.status(500).json({ error: 'Не удалось сохранить данные' });
   }
 }));
+
+app.post('/api/elf/chat', authenticate, wrap(elfChat));
 
 async function sendTelegram(method, payload) {
   if (!BOT_TOKEN) throw new Error('BOT_TOKEN не задан');

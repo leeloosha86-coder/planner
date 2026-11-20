@@ -3,6 +3,7 @@ import { dateKey, isValidRepeat, makeId, rolloverOverdueTasks } from './date';
 import { DEFAULT_SPHERES, fallbackSphereId, modernSphereId, normalizeSpheres } from './spheres';
 import { getTelegram } from './telegram';
 import type { Habit, Note, PlannerData, ShoppingItem, ShoppingTemplate, Task } from './types';
+import type { ElfContext, ElfMessage } from './elf';
 
 const STORAGE_KEY = 'moy-planirovshchik-data-v1';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
@@ -191,3 +192,11 @@ export async function refreshRemote(): Promise<PlannerData | null> {
 
 export const hasRemoteConfiguration = Boolean(API_URL);
 export const botUsername = process.env.EXPO_PUBLIC_BOT_USERNAME || '';
+
+export async function askElf(messages: ElfMessage[], context: ElfContext): Promise<string> {
+  if (!hasRemoteConfiguration) throw new Error('Эльфийка будет доступна, когда приложение подключено к серверу.');
+  const response = await request('/api/elf/chat', { method: 'POST', body: JSON.stringify({ messages, context }) });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Эльфийка сейчас недоступна.');
+  return String(payload.reply || '');
+}

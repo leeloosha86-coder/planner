@@ -10,7 +10,7 @@ import TaskCard from '../components/TaskCard';
 import { ChoiceChip, EmptyState } from '../components/UI';
 import { LeafMark } from '../components/Decor';
 
-export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres, onStats, onRitual }: {
+export default function TodayScreen({ tasks, spheres, xp, today, filter, botStarted, syncError, refreshing, celebrationSignal, onFilter, onToggle, onEdit, onRefresh, onOpenBot, onRetry, onManageSpheres, onStats, onRitual, onElf }: {
   tasks: Task[];
   spheres: SphereCustom[];
   xp: number;
@@ -29,6 +29,7 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
   onManageSpheres: () => void;
   onStats: () => void;
   onRitual: () => void;
+  onElf: () => void;
 }) {
   const { colors, serif } = useTheme();
   const [query, setQuery] = useState('');
@@ -43,7 +44,7 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
   const header = (
     <View>
       <View style={styles.brandRow}>
-        <View style={styles.brand}><LeafMark size={29} /><Text style={[styles.brandText, { color: colors.forest, fontFamily: serif }]}>Мой планировщик</Text></View>
+        <View style={styles.brand}><LeafMark size={29} /><Text style={[styles.brandText, { color: colors.forest, fontFamily: serif }]}>Планировщик Рыжий Эльф</Text></View>
         <View style={[styles.seasonPill, { backgroundColor: colors.forestSoft }]}><View style={[styles.seasonDot, { backgroundColor: colors.sage }]} /><Text style={[styles.seasonText, { color: colors.forest }]}>тихий день</Text></View>
       </View>
       <View style={styles.greetingRow}>
@@ -63,6 +64,9 @@ export default function TodayScreen({ tasks, spheres, xp, today, filter, botStar
         </Pressable>
         <Pressable onPress={onRitual} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть итоги дня">
           <Ionicons name="moon-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Вечер</Text>
+        </Pressable>
+        <Pressable onPress={onElf} style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border }]} accessibilityLabel="Открыть Рыжего Эльфа">
+          <Ionicons name="sparkles-outline" size={18} color={colors.forest} /><Text style={[styles.actionText, { color: colors.text }]}>Эльфийка</Text>
         </Pressable>
       </View>
       {!botStarted && <View style={[styles.reminder, { backgroundColor: colors.goldSoft, borderColor: colors.gold }]}>

@@ -5,6 +5,7 @@ type HapticStyle = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
 
 export interface TelegramWebApp {
   initData: string;
+  initDataUnsafe?: { user?: { first_name?: string } };
   colorScheme?: 'light' | 'dark';
   themeParams?: {
     bg_color?: string;

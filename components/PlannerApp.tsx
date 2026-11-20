@@ -22,6 +22,7 @@ import TipPopup from './TipPopup';
 import ReminderPopup from './ReminderPopup';
 import UndoBar from './UndoBar';
 import RitualSheet from './RitualSheet';
+import ElfChat from './ElfChat';
 import StatsScreen from '../screens/StatsScreen';
 import { ConfirmDialog, FadeIn } from './UI';
 import ElfPortrait from './ElfPortrait';
@@ -42,6 +43,7 @@ export default function PlannerApp() {
   const { webApp, isTelegram, sdkReady, haptic, notify } = useTelegram();
   const theme = buildTheme(systemScheme, webApp);
   const { colors, serif } = theme;
+  const telegramName = webApp?.initDataUnsafe?.user?.first_name?.slice(0, 40) || '';
   const [data, setData] = useState<PlannerData>(() => createInitialData());
   const [hydrated, setHydrated] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
@@ -59,6 +61,7 @@ export default function PlannerApp() {
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [statsVisible, setStatsVisible] = useState(false);
   const [ritualVisible, setRitualVisible] = useState(false);
+  const [elfVisible, setElfVisible] = useState(false);
   const [reminders, setReminders] = useState<Task[]>([]);
   const shownReminders = useRef(new Set<string>());
   const dataRef = useRef(data);
@@ -191,12 +194,13 @@ export default function PlannerApp() {
     else if (noteDraft) setNoteDraft(null);
     else if (habitFormVisible) setHabitFormVisible(false);
     else if (spheresVisible) setSpheresVisible(false);
-  }, [confirm, habitFormVisible, noteDraft, spheresVisible, taskDraft]);
+    else if (elfVisible) setElfVisible(false);
+  }, [confirm, elfVisible, habitFormVisible, noteDraft, spheresVisible, taskDraft]);
 
   useEffect(() => {
     if (!webApp) return;
     const formOpen = Boolean(taskDraft || noteDraft || habitFormVisible || spheresVisible);
-    const visible = appVisible && (formOpen || activeTab === 'today');
+    const visible = appVisible && !elfVisible && (formOpen || activeTab === 'today');
     const handler = () => {
       if (taskDraft) taskFormRef.current?.save();
       else if (noteDraft) noteEditorRef.current?.save();
@@ -214,15 +218,15 @@ export default function PlannerApp() {
     if (visible) webApp.MainButton.show(); else webApp.MainButton.hide();
     webApp.MainButton.onClick(handler);
     return () => webApp.MainButton.offClick(handler);
-  }, [activeTab, appVisible, habitFormVisible, noteDraft, openNewTask, spheresVisible, taskDraft, webApp]);
+  }, [activeTab, appVisible, elfVisible, habitFormVisible, noteDraft, openNewTask, spheresVisible, taskDraft, webApp]);
 
   useEffect(() => {
     if (!webApp) return;
-    const visible = Boolean(taskDraft || noteDraft || habitFormVisible || spheresVisible || confirm);
+    const visible = Boolean(taskDraft || noteDraft || habitFormVisible || spheresVisible || confirm || elfVisible);
     if (visible) webApp.BackButton.show(); else webApp.BackButton.hide();
     webApp.BackButton.onClick(closeTop);
     return () => webApp.BackButton.offClick(closeTop);
-  }, [closeTop, confirm, habitFormVisible, noteDraft, spheresVisible, taskDraft, webApp]);
+  }, [closeTop, confirm, elfVisible, habitFormVisible, noteDraft, spheresVisible, taskDraft, webApp]);
 
   const toggleTask = useCallback((task: Task, occurrenceDate = today) => {
     const wasDone = isTaskDone(task, occurrenceDate);
@@ -493,7 +497,7 @@ export default function PlannerApp() {
         <View style={[styles.frame, { backgroundColor: colors.bg }, Platform.OS === 'web' && { shadowColor: colors.shadow }]}>
           <View style={[styles.screen, { paddingTop: topInset }]}>
             {hydrated && <>
-              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} />}
+              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} onElf={() => setElfVisible(true)} />}
               {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
               {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onToggleDay={toggleHabitDay} onAdd={() => setHabitFormVisible(true)} />}
               {activeTab === 'notes' && <NotesScreen notes={data.notes} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
@@ -529,6 +533,7 @@ export default function PlannerApp() {
           total={tasksForDate(data.tasks, today).length}
           onMove={moveToTomorrow}
         />
+        <ElfChat visible={elfVisible} data={data} name={telegramName} topInset={topInset} bottomInset={Math.max(insets.bottom, telegramBottom)} onClose={() => setElfVisible(false)} />
         <Modal visible={statsVisible} animationType="slide" onRequestClose={() => setStatsVisible(false)} statusBarTranslucent>
           <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: topInset }}>
             <View style={styles.statsHeader}>
