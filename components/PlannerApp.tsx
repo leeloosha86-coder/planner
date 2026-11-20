@@ -3,7 +3,7 @@ import { Linking, Modal, Platform, Pressable, StyleSheet, Text, useColorScheme, 
 import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FOCUS_XP, LEVELS, MAX_XP, TASK_XP } from '../lib/constants';
+import { COLORS, LEVELS, MAX_XP, TASK_XP } from '../lib/constants';
 import { addDays, dateKey, isTaskDone, makeId, tasksForDate } from '../lib/date';
 import { dueReminders } from '../lib/reminders';
 import { botUsername, createInitialData, loadData, persistLocal, persistRemote } from '../lib/storage';
@@ -21,7 +21,6 @@ import SpheresSheet, { SpheresSheetHandle } from './SpheresSheet';
 import TipPopup from './TipPopup';
 import ReminderPopup from './ReminderPopup';
 import UndoBar from './UndoBar';
-import FocusSheet from './FocusSheet';
 import RitualSheet from './RitualSheet';
 import StatsScreen from '../screens/StatsScreen';
 import { ConfirmDialog, FadeIn } from './UI';
@@ -58,7 +57,6 @@ export default function PlannerApp() {
   const [spheresVisible, setSpheresVisible] = useState(false);
   const [tip, setTip] = useState<string | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
-  const [focusVisible, setFocusVisible] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const [ritualVisible, setRitualVisible] = useState(false);
   const [reminders, setReminders] = useState<Task[]>([]);
@@ -466,19 +464,6 @@ export default function PlannerApp() {
     commit((current) => ({ ...current, templates: current.templates.filter((entry) => entry.id !== template.id) }));
   };
 
-  const finishFocus = (minutes: number) => {
-    const today = dateKey(new Date());
-    notify('success');
-    commit((current) => ({
-      ...current,
-      xp: Math.max(0, Math.min(MAX_XP, current.xp + FOCUS_XP)),
-      focus: [...current.focus.filter((session) => session.date !== today), {
-        date: today,
-        minutes: (current.focus.find((session) => session.date === today)?.minutes || 0) + minutes,
-      }],
-    }));
-  };
-
   const moveToTomorrow = (task: Task) => {
     const tomorrow = dateKey(addDays(new Date(), 1));
     haptic('light');
@@ -508,7 +493,7 @@ export default function PlannerApp() {
         <View style={[styles.frame, { backgroundColor: colors.bg }, Platform.OS === 'web' && { shadowColor: colors.shadow }]}>
           <View style={[styles.screen, { paddingTop: topInset }]}>
             {hydrated && <>
-              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onFocus={() => setFocusVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} />}
+              {activeTab === 'today' && <TodayScreen tasks={data.tasks} spheres={data.spheres} xp={data.xp} today={today} filter={filter} botStarted={data.botStarted} syncError={syncError} refreshing={refreshing} onFilter={setFilter} onToggle={(task) => toggleTask(task, today)} onEdit={editTask} onRefresh={hydrate} celebrationSignal={levelUpSignal} onOpenBot={openBot} onRetry={hydrate} onManageSpheres={() => setSpheresVisible(true)} onStats={() => setStatsVisible(true)} onRitual={() => setRitualVisible(true)} />}
               {activeTab === 'schedule' && <ScheduleScreen tasks={data.tasks} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={(date, time) => openNewTask(date, time)} onEdit={editTask} onToggle={toggleTask} />}
               {activeTab === 'habits' && <HabitsScreen habits={data.habits} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onToggleDay={toggleHabitDay} onAdd={() => setHabitFormVisible(true)} />}
               {activeTab === 'notes' && <NotesScreen notes={data.notes} spheres={data.spheres} refreshing={refreshing} onRefresh={hydrate} onAdd={openNewNote} onEdit={openNote} onDelete={requestDeleteNote} />}
@@ -536,7 +521,6 @@ export default function PlannerApp() {
         <NoteEditor ref={noteEditorRef} visible={Boolean(noteDraft)} initial={noteDraft} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setNoteDraft(null)} onSave={saveNote} />
         <HabitForm ref={habitFormRef} visible={habitFormVisible} spheres={data.spheres} useTelegramButton={isTelegram} onClose={() => setHabitFormVisible(false)} onSave={saveHabit} />
         <SpheresSheet ref={spheresSheetRef} visible={spheresVisible} spheres={data.spheres} noteCount={countSphereUsage} useTelegramButton={isTelegram} onClose={() => setSpheresVisible(false)} onSave={changeSpheres} onDelete={requestDeleteSphere} />
-        <FocusSheet visible={focusVisible} onClose={() => setFocusVisible(false)} onFinish={finishFocus} />
         <RitualSheet
           visible={ritualVisible}
           onClose={() => setRitualVisible(false)}
