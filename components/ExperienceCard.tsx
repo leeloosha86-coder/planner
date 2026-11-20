@@ -7,7 +7,7 @@ import ElfPortrait from './ElfPortrait';
 import { ForestCorner, GoldSpark } from './Decor';
 import SparkBurst from './SparkBurst';
 
-export default function ExperienceCard({ xp, celebrationSignal }: { xp: number; celebrationSignal: number }) {
+export default function ExperienceCard({ xp, celebrationSignal, showHint = true }: { xp: number; celebrationSignal: number; showHint?: boolean }) {
   const { colors, serif, cardShadow } = useTheme();
   const collection = useCollection();
   const level = LEVELS.reduce((result, item, index) => xp >= item.xp ? index : result, 0);
@@ -72,9 +72,9 @@ export default function ExperienceCard({ xp, celebrationSignal }: { xp: number; 
           <Text style={[styles.xpText, { color: colors.gold }]}>{xp} XP</Text>
           {next && <Text style={[styles.nextXp, { color: colors.muted }]}>{next.xp} XP</Text>}
         </View>
-        <Text style={[styles.hint, { color: colors.muted }]}>
+        {showHint && <Text style={[styles.hint, { color: colors.muted }]}>
           {next ? `Ещё ${next.xp - xp} XP до „${next.genitive}“` : `Высшая стадия · ${MAX_XP} XP`}
-        </Text>
+        </Text>}
         <Text style={[styles.reward, { color: colors.sage }]}>+10 XP за каждое доброе дело</Text>
         <Pressable onPress={switchCollection} accessibilityRole="button" accessibilityLabel={`Коллекция: ${COLLECTIONS[collection]}. Нажмите, чтобы сменить`} style={[styles.collectionChip, { backgroundColor: colors.goldSoft, borderColor: colors.gold }]}>
           <Text style={[styles.collectionText, { color: colors.text }]}>{`Коллекция: ${COLLECTIONS[collection]}`}</Text>
